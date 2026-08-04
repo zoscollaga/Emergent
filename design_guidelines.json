@@ -1,0 +1,157 @@
+{
+  "app_name": "Golf Scorecard",
+  "personality": "1 iOS-Native Clean (High-Contrast Outdoor Utility Fusion)",
+  "personality_one_liner": "Extremely simple, high-contrast premium golf utility optimized for bright sunlight and glanceability outdoors.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#111827",
+    "surfaceSecondary": "#F3F4F6",
+    "onSurfaceSecondary": "#1F2937",
+    "surfaceTertiary": "#E5E7EB",
+    "onSurfaceTertiary": "#374151",
+    "surfaceInverse": "#111827",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#064E3B",
+    "brandPrimary": "#2563EB",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#047857",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#D1FAE5",
+    "onBrandTertiary": "#064E3B",
+    "success": "#16A34A",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D97706",
+    "onWarning": "#FFFFFF",
+    "error": "#DC2626",
+    "onError": "#FFFFFF",
+    "info": "#2563EB",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E7EB",
+    "borderStrong": "#9CA3AF",
+    "divider": "#E5E7EB"
+  },
+  "typography": {
+    "displayFontFamily": "Space Grotesk",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 48
+    }
+  },
+  "spacing": {
+    "rule": "Generous padding and huge touch targets (min 60pt) are critical for outdoor sunlight usage. Do not cramp elements.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "stack_only",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [],
+    "dont's": [
+      "Avoid glassmorphism completely; outdoor sunlight readability requires flat, high-contrast solid surfaces."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "Land the user at the closest course and get them into the round with one massive tap.",
+      "states": {
+        "loading": "Centered spinner while fetching GPS location.",
+        "empty": "No nearby courses found illustration.",
+        "error": "GPS error message with 'Search Courses' retry button."
+      },
+      "layout": "Hero image (hero_landscape) at the top with a top-to-bottom gradient scrim. Overlaid on the bottom 30% of the image: 'Closest Course' label and huge course title in Space Grotesk. Below the image, use a solid white surface. Place a massive, pill-shaped brandPrimary (Blue) 'START ROUND' button pinned near the bottom. A subtle 'Change Course' button sits directly underneath the primary CTA."
+    },
+    {
+      "name": "CourseSelector",
+      "purpose": "Searchable list of golf courses sorted by distance.",
+      "states": {
+        "loading": "Skeleton list of courses.",
+        "empty": "No courses match the search query.",
+        "error": "Failed to load courses."
+      },
+      "layout": "Sticky search bar at the top. Full-width list rows. Each row shows a course logo (or initials), Course Name, and Distance in metres. Minimal divider between rows. Tapping a row navigates back to Home with the selected course."
+    },
+    {
+      "name": "RoundScreen",
+      "purpose": "Core utility screen for fast score entry on the current hole.",
+      "states": {
+        "loading": "Spinner loading hole data.",
+        "empty": "N/A",
+        "error": "Error loading hole data."
+      },
+      "layout": "Header shows 'Hole 1 / 18'. Below it, large numbers for Distance (metres) and Par/Stroke Index. The center is dominated by two massive stepper controls for 'Score' and 'Putts'. The stepper +/- buttons must be at least 60x60pt for easy outdoor tapping. Current score is displayed in a massive Space Grotesk font (3xl or larger) between the +/-. Pinned at the very bottom: a split layout with 'Previous' and 'Next Hole' buttons (Next Hole uses brandPrimary blue, Previous uses a muted surfaceSecondary). On hole 18, 'Next Hole' becomes 'Finish Round'."
+    },
+    {
+      "name": "RoundSummary",
+      "purpose": "Review the entire round's scorecard.",
+      "states": {
+        "loading": "Generating scorecard table.",
+        "empty": "N/A",
+        "error": "Failed to save round."
+      },
+      "layout": "Sticky top header summarizing 'Total Score' and 'Total Putts' in huge, bold Space Grotesk numerals. Below, a clean, high-contrast scrollable table listing all 18 holes. Each row shows Hole #, Par, Score, and Putts. Highlight birdies/bogeys with subtle brandTertiary (green) or surfaceSecondary chips if possible. Pinned bottom CTA: 'Save & Exit'."
+    }
+  ],
+  "images": {
+    "hero_landscape": {
+      "url": "https://images.unsplash.com/photo-1742498626081-a64f9677f468?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHwlMjJnb2xmJTIwY291cnNlJTIwbGFuZHNjYXBlJTIyfGVufDB8fHx8MTc4NTgxMzk5MXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Golf course landscape surrounded by trees at dawn"
+    },
+    "course_logo_placeholder": {
+      "url": "https://images.unsplash.com/photo-1762774172043-091b81edd2a2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHwlMjJnb2xmJTIwY291cnNlJTIwbG9nbyUyMnxlbnwwfHx8fDE3ODU4MTM5OTF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Golf course canvas bag branding"
+    },
+    "tee_marker": {
+      "url": "https://images.unsplash.com/photo-1672871582975-baf9e541236d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHwlMjJnb2xmJTIwYmFsbCUyMG9uJTIwZ3JlZW4lMjJ8ZW58MHx8fHwxNzg1ODEzOTkxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Red golf tee yardage sign on the grass"
+    }
+  },
+  "haptics": {
+    "events": {
+      "stepper_increment": "impactLight",
+      "stepper_decrement": "impactLight",
+      "next_hole": "impactMedium",
+      "finish_round": "notificationSuccess",
+      "course_select": "selection"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Prioritize extreme high contrast. The app is used outdoors in bright sunlight. Avoid glassmorphism, thin lines, and low-contrast grey text.",
+    "Implement huge touch targets (minimum 60x60pt) for the Score and Putts stepper buttons (+ and -) so they can be tapped easily without looking closely.",
+    "Use 'Space Grotesk' for all large numbers and metrics to ensure glanceability.",
+    "The RoundScreen must not require the keyboard. Rely entirely on the massive +/- stepper controls for data entry.",
+    "Respect the requested palette: Pure white background, dark green accents/headers, light grey cards for data grouping, and blue for primary action buttons (START ROUND, Next Hole).",
+    "Keep navigation to a simple Stack layout. Do not use bottom tabs. The user is either setting up a round or actively playing one.",
+    "Make sure distances are displayed in Metres ('m') as requested by the user."
+  ]
+}
