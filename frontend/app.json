@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.greensscorecard.kpr1tv"
+      "bundleIdentifier": "com.emergent.greensscorecard.kpr1tv",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Find nearby golf courses to score."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,11 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.greensscorecard.kpr1tv"
+      "package": "com.emergent.greensscorecard.kpr1tv",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -27,6 +34,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Golf Scorecard to use your location to find nearby courses."
+        }
+      ],
       [
         "expo-splash-screen",
         {
