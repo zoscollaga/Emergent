@@ -1,48 +1,47 @@
 # Golf Scorecard - Product Requirements
 
 ## Summary
-A polished, high-contrast Expo (React Native) mobile app for golfers to quickly record scores during a round. Optimised for outdoor sunlight readability, huge touch targets, and zero-keyboard score entry.
+A polished, high-contrast Expo (React Native) mobile app for golfers to quickly record scores during a round at **Keilor Golf Course** (the only course for now). Supports solo scoring and **peer-verified pair scoring** across two devices, with Google Sheets export.
 
-## Core Features (v1)
-- **Auto-detected course**: GPS permission → OpenStreetMap Overpass API returns nearby golf courses sorted by distance; the closest is auto-selected on Home.
-- **Change Course**: Searchable, distance-sorted list of nearby courses; falls back to a curated famous-course list if Overpass is unavailable.
-- **Round entry**: One-hole-at-a-time view showing par / distance (m) / stroke index and two oversized `+/-` steppers for Score and Putts. Score chip shows `+n / E / -n` relative to par.
-- **Navigation**: Previous / Next hole buttons. Previous disabled on hole 1; Next becomes Finish Round on hole 18.
-- **Autosave**: Every stepper tap persists the active round to AsyncStorage. Closing the app and reopening resumes the exact hole and values.
-- **Finish Round**: Local + best-effort remote save (`POST /api/rounds`), then a Round Summary screen with total score (vs par), total putts, and a colour-coded per-hole table.
+## Course (v1.2)
+- **Keilor Golf Course** — 18 holes, Par 69, hardcoded on backend (`/api/courses/keilor`) with the exact par/distance/strokeIndex the user provided.
+- Nearby-course search is retained as a stub returning only Keilor for now. Real course IDs and additional courses will be plugged in later.
 
-## Design
-- Palette: white background, dark green (#064E3B) accents, light grey (#F3F4F6) cards, blue (#2563EB) primary CTAs.
-- Fonts: Space Grotesk (numerics), Plus Jakarta Sans (text) loaded via fontsource CDN.
-- Stack-only navigation via expo-router. No bottom tabs.
+## Solo Mode
+- Home → START ROUND · SOLO → hole-by-hole entry (Score + Putts steppers) → Summary → END ROUND & EXPORT (one row per round to Google Sheets).
 
-## Data Model
-- **Course**: `id, name, latitude, longitude, holes[18]` (each hole: `number, par, distance, index`).
-- **Round**: `id, date, course_id, course_name, latitude, longitude, holes[{number, score, putts}], total_score, total_putts`.
+## Pair Scoring Mode (v1.2)
+1. Home → **PLAY WITH A MARKER** → Pair Setup.
+2. Each device gets an auto-generated **4-digit Member ID** (random for now, persisted via AsyncStorage; real member IDs later).
+3. Player creates a round → gets a **6-digit join code** → Marker joins with the code. Backend polls every 2s until both are linked; then both auto-navigate to the Pair Round screen.
+4. Pair Round screen (per hole): PLAYER row (your own Score/Putts) and MARKER row (partner's Score/Putts you observed). Both devices submit; server cross-checks:
+   - `A.player_score == B.marker_score` AND `B.player_score == A.marker_score`
+   - `A.player_putts == B.marker_putts` AND `B.player_putts == A.marker_putts`
+5. States: **pending** (waiting for the other), **verified** (rows green, Next Hole enabled on both), **mismatch** (rows RED, banner "Scores don't match", Next Hole hidden — must re-submit matching values).
+6. Hole 18 verified → Finish Round → Pair Summary.
+7. Each device submits its MARKER's card (verified partner data) to Google Sheets. Filename / tab name: **`MEMBER-YYYYMMDDHHMM-COURSE`** (e.g. `2314-202608041500-1423`) in local time.
 
-## Backend (`/app/backend/server.py`)
-- `GET /api/` – health.
-- `GET /api/courses/nearby?lat&lng&radius` – Overpass API + haversine + curated fallback.
-- `GET /api/courses/{id}?name&lat&lng` – returns stored or default hole layout (mix of par 3/4/5s).
-- `POST /api/rounds` – validates, computes totals, stores in Mongo.
-- `GET /api/rounds` – list, excludes `_id`.
+## Google Sheets Export
+- Target: a spreadsheet called **Scorecards**.
+- Container-bound Apps Script creates one **tab per player per round** using the filename from the app.
+- POSTed as `text/plain` JSON (`{csv, filename, meta}`) to skip Apps Script CORS preflight.
+- CSV columns for pair mode: `Date, Course, Course ID, Player Member ID, Marker Member ID, Total Score, Total Putts, H1 Par/Score/Putts … H18 Par/Score/Putts`.
+
+## Backend
+- `GET /api/courses/keilor` and `/api/courses/nearby` — Keilor only.
+- `POST /api/sessions` — creates a paired session with random 6-digit join code and deterministic 4-digit course id.
+- `POST /api/sessions/join/{code}` — second device joins (3rd is 409, idempotent rejoin).
+- `GET /api/sessions/{id}` — returns players + hole_entries + computed `hole_status`.
+- `POST /api/sessions/{id}/holes/{n}/submit` — upserts an entry for that device.
+- `POST /api/sessions/{id}/finish` — sets finished_at.
+- Solo endpoints (`/api/rounds`) unchanged.
 
 ## Frontend Screens
-- `app/index.tsx` – Home (hero image + CTA).
-- `app/courses.tsx` – Nearby courses (search + list).
-- `app/round.tsx` – Hole-by-hole score entry.
-- `app/summary.tsx` – Round Summary table.
+- `app/index.tsx` — Home (Keilor + Solo/Pair CTAs).
+- `app/round.tsx` / `app/summary.tsx` — Solo flow (v1.0).
+- `app/pair.tsx` — Member ID + Create/Join.
+- `app/pair-round.tsx` — Peer-verified hole entry with mismatch guard.
+- `app/pair-summary.tsx` — Marker's card preview + export.
 
-## Future Roadmap (from problem statement)
-Handicap, Stableford, Match Play, Skins, teams, live leaderboard, wearables, stats dashboard (fairways/GIR/sand saves/penalties), shot tracking, PDF export, share scorecard, club tracking, weather, tee selection, dark mode.
-
-## Google Sheets Export (v1.1)
-- Summary screen replaces "Done" with an **END ROUND & EXPORT** button.
-- On first tap, a bottom-sheet modal shows step-by-step Apps Script setup (with the exact 8-line `doPost` snippet) and a URL field for the Web app URL.
-- URL is validated (`script.google.com` / `script.googleusercontent.com`) and persisted in AsyncStorage; subsequent rounds export in one tap.
-- CSV format: one row per round, columns `Date, Course, Total Score, Total Putts, H1 Par, H1 Score, H1 Putts, … H18 Par, H18 Score, H18 Putts` — header appended only when the sheet is empty.
-- POSTed as `text/plain` JSON (`{csv, filename, round}`) to avoid Apps Script CORS preflight; success/error banner + exported-round marker so users see when a round is already synced.
-- A cog icon on the Summary screen re-opens the settings modal to update the webhook URL.
-
-## Business Enhancement (built-in)
-- Round history persisted locally + remote (`GET /api/rounds`) sets up **free-tier + Pro sync/statistics** as the natural monetisation path once handicap/GIR/fairways stats are added.
+## Future Roadmap
+Real Member/Course IDs (from a directory), handicap, Stableford, multi-group leaderboards, wearables, stats dashboard, PDF export, dark mode.
