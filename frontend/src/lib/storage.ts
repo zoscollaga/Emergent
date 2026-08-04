@@ -33,6 +33,43 @@ const K_SELECTED_COURSE = 'gs.selectedCourse';
 const K_ACTIVE_ROUND = 'gs.activeRound';
 const K_ROUND_HISTORY = 'gs.roundHistory';
 const K_COURSE_OVERRIDES = 'gs.courseOverrides'; // per-course edited hole info
+const K_SHEETS_WEBHOOK = 'gs.sheetsWebhook';
+const K_EXPORTED_ROUNDS = 'gs.exportedRounds';
+const K_DEVICE_ID = 'gs.deviceId';
+const K_MEMBER_ID = 'gs.memberId';
+const K_ACTIVE_SESSION = 'gs.activeSession';
+
+export async function getDeviceId(): Promise<string> {
+  let id = await AsyncStorage.getItem(K_DEVICE_ID);
+  if (!id) {
+    id = `dev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await AsyncStorage.setItem(K_DEVICE_ID, id);
+  }
+  return id;
+}
+
+export async function getMemberId(): Promise<string> {
+  let id = await AsyncStorage.getItem(K_MEMBER_ID);
+  if (!id) {
+    id = String(Math.floor(1000 + Math.random() * 9000));
+    await AsyncStorage.setItem(K_MEMBER_ID, id);
+  }
+  return id;
+}
+
+export async function setMemberId(id: string) {
+  await AsyncStorage.setItem(K_MEMBER_ID, id);
+}
+
+export async function getActiveSessionId(): Promise<string | null> {
+  return AsyncStorage.getItem(K_ACTIVE_SESSION);
+}
+export async function setActiveSessionId(id: string) {
+  await AsyncStorage.setItem(K_ACTIVE_SESSION, id);
+}
+export async function clearActiveSessionId() {
+  await AsyncStorage.removeItem(K_ACTIVE_SESSION);
+}
 
 export async function getSelectedCourse(): Promise<StoredCourse | null> {
   const raw = await AsyncStorage.getItem(K_SELECTED_COURSE);
@@ -83,4 +120,27 @@ export async function setCourseOverride(id: string, holes: StoredHole[]) {
   const map = raw ? JSON.parse(raw) : {};
   map[id] = holes;
   await AsyncStorage.setItem(K_COURSE_OVERRIDES, JSON.stringify(map));
+}
+
+export async function getSheetsWebhook(): Promise<string | null> {
+  const v = await AsyncStorage.getItem(K_SHEETS_WEBHOOK);
+  return v && v.trim() ? v.trim() : null;
+}
+export async function setSheetsWebhook(url: string) {
+  await AsyncStorage.setItem(K_SHEETS_WEBHOOK, url.trim());
+}
+export async function clearSheetsWebhook() {
+  await AsyncStorage.removeItem(K_SHEETS_WEBHOOK);
+}
+
+export async function markRoundExported(roundId: string) {
+  const raw = await AsyncStorage.getItem(K_EXPORTED_ROUNDS);
+  const arr: string[] = raw ? JSON.parse(raw) : [];
+  if (!arr.includes(roundId)) arr.push(roundId);
+  await AsyncStorage.setItem(K_EXPORTED_ROUNDS, JSON.stringify(arr));
+}
+export async function isRoundExported(roundId: string): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(K_EXPORTED_ROUNDS);
+  const arr: string[] = raw ? JSON.parse(raw) : [];
+  return arr.includes(roundId);
 }

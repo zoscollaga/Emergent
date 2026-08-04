@@ -57,3 +57,94 @@ export async function saveRound(payload: {
   if (!res.ok) throw new Error(`Save round failed ${res.status}`);
   return res.json();
 }
+
+// ---------- Pair session API ----------
+export type ApiSessionPlayer = { device_id: string; member_id: string; role: 'host' | 'guest' };
+export type ApiHoleSubmission = {
+  hole_number: number;
+  device_id: string;
+  player_score: number | null;
+  player_putts: number | null;
+  marker_score: number | null;
+  marker_putts: number | null;
+  submitted_at: string;
+};
+export type ApiSession = {
+  id: string;
+  join_code: string;
+  course_id: string;
+  course_short_id: string;
+  course_name: string;
+  holes: ApiHole[];
+  started_at: string;
+  players: ApiSessionPlayer[];
+  hole_entries: ApiHoleSubmission[];
+  hole_status: Record<string, 'pending' | 'verified' | 'mismatch'>;
+  finished_at: string | null;
+};
+
+export async function createSession(payload: {
+  device_id: string;
+  member_id: string;
+  course_id: string;
+  course_name: string;
+}): Promise<ApiSession> {
+  const res = await fetch(`${BASE}/api/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Create session failed ${res.status}`);
+  return res.json();
+}
+
+export async function joinSession(
+  joinCode: string,
+  payload: { device_id: string; member_id: string },
+): Promise<ApiSession> {
+  const res = await fetch(`${BASE}/api/sessions/join/${encodeURIComponent(joinCode)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Join session failed ${res.status}`);
+  return res.json();
+}
+
+export async function getSession(sessionId: string): Promise<ApiSession> {
+  const res = await fetch(`${BASE}/api/sessions/${encodeURIComponent(sessionId)}`);
+  if (!res.ok) throw new Error(`Get session failed ${res.status}`);
+  return res.json();
+}
+
+export async function submitHole(
+  sessionId: string,
+  holeNumber: number,
+  payload: {
+    device_id: string;
+    player_score: number | null;
+    player_putts: number | null;
+    marker_score: number | null;
+    marker_putts: number | null;
+  },
+): Promise<ApiSession> {
+  const res = await fetch(
+    `${BASE}/api/sessions/${encodeURIComponent(sessionId)}/holes/${holeNumber}/submit`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) throw new Error(`Submit hole failed ${res.status}`);
+  return res.json();
+}
+
+export async function finishSession(sessionId: string): Promise<ApiSession> {
+  const res = await fetch(
+    `${BASE}/api/sessions/${encodeURIComponent(sessionId)}/finish`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw new Error(`Finish session failed ${res.status}`);
+  return res.json();
+}

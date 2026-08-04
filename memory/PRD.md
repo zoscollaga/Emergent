@@ -36,5 +36,13 @@ A polished, high-contrast Expo (React Native) mobile app for golfers to quickly 
 ## Future Roadmap (from problem statement)
 Handicap, Stableford, Match Play, Skins, teams, live leaderboard, wearables, stats dashboard (fairways/GIR/sand saves/penalties), shot tracking, PDF export, share scorecard, club tracking, weather, tee selection, dark mode.
 
+## Google Sheets Export (v1.1)
+- Summary screen replaces "Done" with an **END ROUND & EXPORT** button.
+- On first tap, a bottom-sheet modal shows step-by-step Apps Script setup (with the exact 8-line `doPost` snippet) and a URL field for the Web app URL.
+- URL is validated (`script.google.com` / `script.googleusercontent.com`) and persisted in AsyncStorage; subsequent rounds export in one tap.
+- CSV format: one row per round, columns `Date, Course, Total Score, Total Putts, H1 Par, H1 Score, H1 Putts, … H18 Par, H18 Score, H18 Putts` — header appended only when the sheet is empty.
+- POSTed as `text/plain` JSON (`{csv, filename, round}`) to avoid Apps Script CORS preflight; success/error banner + exported-round marker so users see when a round is already synced.
+- A cog icon on the Summary screen re-opens the settings modal to update the webhook URL.
+
 ## Business Enhancement (built-in)
 - Round history persisted locally + remote (`GET /api/rounds`) sets up **free-tier + Pro sync/statistics** as the natural monetisation path once handicap/GIR/fairways stats are added.

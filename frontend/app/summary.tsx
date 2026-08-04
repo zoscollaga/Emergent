@@ -1,23 +1,39 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   FinishedRound,
+  StoredCourse,
   getRoundHistory,
   getSelectedCourse,
-  StoredCourse,
+  getSheetsWebhook,
+  isRoundExported,
+  markRoundExported,
+  setSheetsWebhook,
 } from "@/src/lib/storage";
+import { exportToGoogleSheet } from "@/src/lib/sheets";
+
+type ExportState =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | { kind: "success"; when: number }
+  | { kind: "error"; message: string };
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -25,6 +41,11 @@ export default function SummaryScreen() {
   const [round, setRound] = useState<FinishedRound | null>(null);
   const [course, setCourse] = useState<StoredCourse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [alreadyExported, setAlreadyExported] = useState(false);
+  const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
+  const [showSetup, setShowSetup] = useState(false);
+  const [webhookInput, setWebhookInput] = useState("");
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -33,9 +54,58 @@ export default function SummaryScreen() {
       setRound(target || null);
       const c = await getSelectedCourse();
       setCourse(c);
+      if (target) {
+        setAlreadyExported(await isRoundExported(target.id));
+      }
       setLoading(false);
     })();
   }, [id]);
+
+  const performExport = async (webhookUrl: string) => {
+    if (!round) return;
+    setExportState({ kind: "sending" });
+    Haptics.selectionAsync().catch(() => {});
+    const result = await exportToGoogleSheet(webhookUrl, round, course);
+    if (result.ok) {
+      await markRoundExported(round.id);
+      setAlreadyExported(true);
+      setExportState({ kind: "success", when: Date.now() });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } else {
+      const msg =
+        result.status === 0
+          ? "Network error. Check your webhook URL and connection."
+          : `Sheet rejected the request (HTTP ${result.status}). Check your Apps Script.`;
+      setExportState({ kind: "error", message: msg });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    }
+  };
+
+  const onEndRound = async () => {
+    if (!round) return;
+    const stored = await getSheetsWebhook();
+    if (!stored) {
+      setWebhookInput("");
+      setSetupError(null);
+      setShowSetup(true);
+      return;
+    }
+    performExport(stored);
+  };
+
+  const onSaveWebhook = async () => {
+    const url = webhookInput.trim();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(url)) {
+      setSetupError(
+        "That doesn't look like an Apps Script web app URL. It should start with https://script.google.com/",
+      );
+      return;
+    }
+    setSetupError(null);
+    await setSheetsWebhook(url);
+    setShowSetup(false);
+    performExport(url);
+  };
 
   if (loading) {
     return (
@@ -68,8 +138,25 @@ export default function SummaryScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="summary-screen">
       <View style={styles.header}>
-        <Text style={styles.title}>Round Summary</Text>
-        <Text style={styles.subtitle} numberOfLines={1}>{round.course_name}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Round Summary</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>{round.course_name}</Text>
+        </View>
+        <Pressable
+          onPress={() => {
+            (async () => {
+              const stored = await getSheetsWebhook();
+              setWebhookInput(stored || "");
+              setSetupError(null);
+              setShowSetup(true);
+            })();
+          }}
+          hitSlop={12}
+          testID="sheets-settings-button"
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="settings-outline" size={22} color={colors.onSurfaceSecondary} />
+        </Pressable>
       </View>
 
       <View style={styles.totalsCard}>
@@ -121,16 +208,149 @@ export default function SummaryScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
-          onPress={() => router.replace("/")}
-          testID="summary-done-button"
-          style={({ pressed }) => [styles.doneBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Ionicons name="checkmark-circle" size={22} color={colors.onBrandPrimary} />
-          <Text style={styles.doneBtnText}>Done</Text>
-        </Pressable>
+        {exportState.kind === "error" && (
+          <View style={styles.errorBanner} testID="export-error-banner">
+            <Ionicons name="alert-circle" size={16} color={colors.error} />
+            <Text style={styles.errorBannerText}>{exportState.message}</Text>
+          </View>
+        )}
+        {exportState.kind === "success" && (
+          <View style={styles.successBanner} testID="export-success-banner">
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.successBannerText}>Scorecard sent to your Google Sheet.</Text>
+          </View>
+        )}
+
+        <View style={styles.footerButtons}>
+          <Pressable
+            onPress={() => router.replace("/")}
+            testID="summary-home-button"
+            style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.secondaryBtnText}>Home</Text>
+          </Pressable>
+          <Pressable
+            onPress={onEndRound}
+            disabled={exportState.kind === "sending"}
+            testID="end-round-button"
+            style={({ pressed }) => [
+              styles.endRoundBtn,
+              alreadyExported && { backgroundColor: colors.success },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            {exportState.kind === "sending" ? (
+              <ActivityIndicator color={colors.onBrandPrimary} />
+            ) : (
+              <>
+                <Ionicons
+                  name={alreadyExported ? "checkmark-done" : "cloud-upload"}
+                  size={20}
+                  color={colors.onBrandPrimary}
+                />
+                <Text style={styles.endRoundBtnText}>
+                  {alreadyExported ? "EXPORT AGAIN" : "END ROUND & EXPORT"}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </View>
       </View>
+
+      <SetupModal
+        visible={showSetup}
+        value={webhookInput}
+        onChange={setWebhookInput}
+        onCancel={() => setShowSetup(false)}
+        onSave={onSaveWebhook}
+        error={setupError}
+      />
     </SafeAreaView>
+  );
+}
+
+function SetupModal({
+  visible,
+  value,
+  onChange,
+  onCancel,
+  onSave,
+  error,
+}: {
+  visible: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  error: string | null;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onCancel}
+    >
+      <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ width: "100%" }}
+        >
+          <View style={styles.sheet} testID="sheets-setup-modal">
+            <View style={styles.sheetGrabber} />
+            <Text style={styles.sheetTitle}>Connect Google Sheet</Text>
+            <Text style={styles.sheetBody}>
+              1. Open a new Google Sheet.{"\n"}
+              2. Extensions → Apps Script. Paste this and Save:
+            </Text>
+            <View style={styles.codeBlock}>
+              <Text style={styles.codeText} selectable>
+{`function doPost(e){
+  const data = JSON.parse(e.postData.contents);
+  const rows = Utilities.parseCsv(data.csv);
+  const sh = SpreadsheetApp.getActive().getSheets()[0];
+  if (sh.getLastRow() === 0) sh.appendRow(rows[0]);
+  sh.appendRow(rows[1]);
+  return ContentService.createTextOutput('ok');
+}`}
+              </Text>
+            </View>
+            <Text style={styles.sheetBody}>
+              3. Deploy → New deployment → Web app → Execute as: Me, Access: Anyone.{"\n"}
+              4. Copy the Web app URL and paste it below.
+            </Text>
+            <TextInput
+              testID="sheets-webhook-input"
+              value={value}
+              onChangeText={onChange}
+              placeholder="https://script.google.com/macros/s/…/exec"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.urlInput}
+            />
+            {error && <Text style={styles.formError}>{error}</Text>}
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={onCancel}
+                testID="sheets-setup-cancel"
+                style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.secondaryBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={onSave}
+                testID="sheets-setup-save"
+                style={({ pressed }) => [styles.endRoundBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Text style={styles.endRoundBtnText}>SAVE & EXPORT</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
@@ -156,17 +376,25 @@ function TotalCell({
 
 function getScoreColor(diff: number | null): { bg: string; fg: string } {
   if (diff == null) return { bg: colors.surfaceSecondary, fg: colors.onSurface };
-  if (diff <= -2) return { bg: "#FEF3C7", fg: "#92400E" }; // eagle+
-  if (diff === -1) return { bg: colors.brandTertiary, fg: colors.brand }; // birdie
-  if (diff === 0) return { bg: colors.surfaceSecondary, fg: colors.onSurface }; // par
-  if (diff === 1) return { bg: "#FEE2E2", fg: "#991B1B" }; // bogey
-  return { bg: "#FCA5A5", fg: "#7F1D1D" }; // double+
+  if (diff <= -2) return { bg: "#FEF3C7", fg: "#92400E" };
+  if (diff === -1) return { bg: colors.brandTertiary, fg: colors.brand };
+  if (diff === 0) return { bg: colors.surfaceSecondary, fg: colors.onSurface };
+  if (diff === 1) return { bg: "#FEE2E2", fg: "#991B1B" };
+  return { bg: "#FCA5A5", fg: "#7F1D1D" };
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   center: { alignItems: "center", justifyContent: "center" },
-  header: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.md },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+  },
+  iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   title: { fontFamily: typography.display, fontSize: 26, color: colors.onSurface },
   subtitle: { fontFamily: typography.text, fontSize: 14, color: colors.muted, marginTop: 2 },
   totalsCard: {
@@ -179,24 +407,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   totalCell: { flex: 1, alignItems: "center" },
-  totalLabel: {
-    color: "#A7F3D0",
-    fontFamily: typography.text,
-    fontSize: 12,
-    letterSpacing: 1,
-  },
+  totalLabel: { color: "#A7F3D0", fontFamily: typography.text, fontSize: 12, letterSpacing: 1 },
   totalValue: {
     color: colors.onBrandSecondary,
     fontFamily: typography.display,
     fontSize: 44,
     marginTop: 6,
   },
-  totalSub: {
-    color: "#D1FAE5",
-    fontFamily: typography.text,
-    fontSize: 12,
-    marginTop: 4,
-  },
+  totalSub: { color: "#D1FAE5", fontFamily: typography.text, fontSize: 12, marginTop: 4 },
   totalDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.15)" },
   tableHeader: {
     flexDirection: "row",
@@ -222,12 +440,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  tdText: {
-    fontFamily: typography.text,
-    fontSize: 16,
-    color: colors.onSurface,
-    textAlign: "center",
-  },
+  tdText: { fontFamily: typography.text, fontSize: 16, color: colors.onSurface, textAlign: "center" },
   scoreChip: {
     minWidth: 44,
     paddingHorizontal: spacing.md,
@@ -236,10 +449,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  scoreChipText: {
-    fontFamily: typography.textBold,
-    fontSize: 15,
-  },
+  scoreChipText: { fontFamily: typography.textBold, fontSize: 15 },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
@@ -247,7 +457,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
-  doneBtn: {
+  footerButtons: { flexDirection: "row", gap: spacing.md },
+  secondaryBtn: {
+    flex: 1,
+    height: 62,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryBtnText: { color: colors.onSurface, fontFamily: typography.textBold, fontSize: 15 },
+  endRoundBtn: {
+    flex: 1.7,
     height: 62,
     borderRadius: radius.pill,
     backgroundColor: colors.brandPrimary,
@@ -256,10 +477,91 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  doneBtnText: {
+  endRoundBtnText: {
     color: colors.onBrandPrimary,
     fontFamily: typography.textBold,
-    fontSize: 16,
+    fontSize: 14,
+    letterSpacing: 1,
   },
+  doneBtn: {
+    height: 62,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandPrimary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  doneBtnText: { color: colors.onBrandPrimary, fontFamily: typography.textBold, fontSize: 16 },
   emptyText: { fontFamily: typography.text, color: colors.muted, marginBottom: spacing.lg },
+  errorBanner: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  errorBannerText: { flex: 1, color: "#991B1B", fontFamily: typography.text, fontSize: 13 },
+  successBanner: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+    backgroundColor: colors.brandTertiary,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  successBannerText: { flex: 1, color: colors.brand, fontFamily: typography.textBold, fontSize: 13 },
+
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(17,24,39,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  sheetGrabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderStrong,
+    marginBottom: spacing.sm,
+  },
+  sheetTitle: { fontFamily: typography.display, fontSize: 22, color: colors.onSurface },
+  sheetBody: { fontFamily: typography.text, color: colors.onSurfaceSecondary, fontSize: 13, lineHeight: 20 },
+  codeBlock: {
+    backgroundColor: "#0F172A",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  codeText: {
+    color: "#E2E8F0",
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    height: 52,
+    fontFamily: typography.text,
+    fontSize: 14,
+    color: colors.onSurface,
+    backgroundColor: colors.surface,
+  },
+  formError: { color: colors.error, fontFamily: typography.text, fontSize: 12 },
+  modalActions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
 });

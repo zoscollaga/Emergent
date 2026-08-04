@@ -1,23 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { fetchCourseDetail, fetchNearbyCourses } from "@/src/lib/api";
 import {
   StoredCourse,
-  getCourseOverride,
+  getMemberId,
   getSelectedCourse,
   setSelectedCourse,
 } from "@/src/lib/storage";
@@ -25,82 +17,56 @@ import {
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1742498626081-a64f9677f468?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHwlMjJnb2xmJTIwY291cnNlJTIwbGFuZHNjYXBlJTIyfGVufDB8fHx8MTc4NTgxMzk5MXww&ixlib=rb-4.1.0&q=85";
 
+const KEILOR: StoredCourse = {
+  id: "keilor",
+  name: "Keilor Golf Course",
+  latitude: -37.7301,
+  longitude: 144.83,
+  holes: [
+    { number: 1,  par: 4, distance: 317, index: 11 },
+    { number: 2,  par: 3, distance: 136, index: 18 },
+    { number: 3,  par: 5, distance: 475, index: 9 },
+    { number: 4,  par: 4, distance: 357, index: 5 },
+    { number: 5,  par: 4, distance: 324, index: 13 },
+    { number: 6,  par: 3, distance: 135, index: 15 },
+    { number: 7,  par: 4, distance: 400, index: 1 },
+    { number: 8,  par: 4, distance: 391, index: 3 },
+    { number: 9,  par: 4, distance: 376, index: 7 },
+    { number: 10, par: 4, distance: 423, index: 2 },
+    { number: 11, par: 3, distance: 179, index: 8 },
+    { number: 12, par: 4, distance: 368, index: 4 },
+    { number: 13, par: 3, distance: 177, index: 10 },
+    { number: 14, par: 3, distance: 164, index: 12 },
+    { number: 15, par: 5, distance: 453, index: 14 },
+    { number: 16, par: 4, distance: 329, index: 16 },
+    { number: 17, par: 4, distance: 325, index: 17 },
+    { number: 18, par: 4, distance: 351, index: 6 },
+  ],
+};
+
 export default function HomeScreen() {
   const router = useRouter();
-  const [course, setCourse] = useState<StoredCourse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<string>("");
+  const [memberId, setMemberId] = useState<string>("");
 
-  const loadOrDetect = useCallback(async () => {
-    setLoading(true);
-    setStatus("Loading last course…");
+  const refresh = useCallback(async () => {
+    // Persist Keilor as the selected course. If a stale different course was saved,
+    // overwrite it — Keilor is the only course for now.
     const cached = await getSelectedCourse();
-    if (cached) {
-      setCourse(cached);
-      setLoading(false);
-      return;
+    if (!cached || cached.id !== KEILOR.id) {
+      await setSelectedCourse(KEILOR);
     }
-
-    // No cached course → try GPS + nearby lookup
-    setStatus("Requesting location…");
-    try {
-      const { status: perm } = await Location.requestForegroundPermissionsAsync();
-      if (perm !== "granted") {
-        setStatus("Location permission denied. Please pick a course.");
-        setLoading(false);
-        return;
-      }
-      setStatus("Detecting nearby courses…");
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const nearby = await fetchNearbyCourses(
-        loc.coords.latitude,
-        loc.coords.longitude,
-      );
-      if (nearby.length === 0) {
-        setStatus("No nearby courses found.");
-        setLoading(false);
-        return;
-      }
-      const closest = nearby[0];
-      const detail = await fetchCourseDetail(
-        closest.id,
-        closest.name,
-        closest.latitude,
-        closest.longitude,
-      );
-      const override = await getCourseOverride(detail.id);
-      const stored: StoredCourse = {
-        id: detail.id,
-        name: detail.name,
-        latitude: detail.latitude,
-        longitude: detail.longitude,
-        distance_km: closest.distance_km,
-        holes: override || detail.holes,
-      };
-      await setSelectedCourse(stored);
-      setCourse(stored);
-    } catch (e: any) {
-      setStatus(`Couldn't detect location. Pick a course manually.`);
-    } finally {
-      setLoading(false);
-    }
+    setMemberId(await getMemberId());
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   useFocusEffect(
     useCallback(() => {
-      // refresh when returning from course selector
-      (async () => {
-        const cached = await getSelectedCourse();
-        if (cached) setCourse(cached);
-      })();
-    }, []),
+      refresh();
+    }, [refresh]),
   );
-
-  useEffect(() => {
-    loadOrDetect();
-  }, [loadOrDetect]);
 
   return (
     <View style={styles.root} testID="home-screen">
@@ -116,56 +82,46 @@ export default function HomeScreen() {
           style={StyleSheet.absoluteFillObject}
         />
         <SafeAreaView style={styles.heroContent} edges={["top"]}>
-          <Text style={styles.brandLabel} testID="brand-label">GOLF SCORECARD</Text>
+          <View style={styles.brandRow}>
+            <Text style={styles.brandLabel} testID="brand-label">GOLF SCORECARD</Text>
+            {memberId ? (
+              <Pressable
+                onPress={() => router.push("/profile")}
+                hitSlop={12}
+                testID="profile-button"
+                style={styles.memberChip}
+              >
+                <Ionicons name="person-circle" size={14} color="#D1FAE5" />
+                <Text style={styles.memberChipText}>Member {memberId}</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <View style={{ flex: 1 }} />
-          <Text style={styles.eyebrow}>Closest course</Text>
+          <Text style={styles.eyebrow}>Today{"\u2019"}s course</Text>
           <Text style={styles.courseName} numberOfLines={2} testID="current-course-name">
-            {course ? course.name : loading ? "Locating…" : "No course selected"}
+            {KEILOR.name}
           </Text>
-          {course?.distance_km != null && (
-            <Text style={styles.courseMeta} testID="current-course-distance">
-              {course.distance_km.toFixed(1)} km away · 18 holes
-            </Text>
-          )}
+          <Text style={styles.courseMeta}>18 holes · Par {KEILOR.holes.reduce((s, h) => s + h.par, 0)}</Text>
         </SafeAreaView>
       </View>
 
       <SafeAreaView style={styles.actions} edges={["bottom"]}>
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.brand} />
-            <Text style={styles.statusText}>{status}</Text>
-          </View>
-        ) : (
-          <>
-            {!course && (
-              <Text style={styles.statusHint} testID="home-status">{status}</Text>
-            )}
-            <Pressable
-              testID="start-round-button"
-              disabled={!course}
-              onPress={() => router.push("/round")}
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                !course && styles.primaryBtnDisabled,
-                pressed && course && { opacity: 0.85 },
-              ]}
-            >
-              <Ionicons name="golf" size={22} color={colors.onBrandPrimary} />
-              <Text style={styles.primaryBtnText}>START ROUND</Text>
-            </Pressable>
-            <Pressable
-              testID="change-course-button"
-              onPress={() => router.push("/courses")}
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.secondaryBtnText}>Change course</Text>
-            </Pressable>
-          </>
-        )}
+        <Pressable
+          testID="start-round-solo-button"
+          onPress={() => router.push("/round")}
+          style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="golf" size={22} color={colors.onBrandPrimary} />
+          <Text style={styles.primaryBtnText}>START ROUND · SOLO</Text>
+        </Pressable>
+        <Pressable
+          testID="start-round-pair-button"
+          onPress={() => router.push("/pair")}
+          style={({ pressed }) => [styles.secondaryBigBtn, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="people" size={20} color={colors.brand} />
+          <Text style={styles.secondaryBigBtnText}>PLAY WITH A MARKER</Text>
+        </Pressable>
       </SafeAreaView>
     </View>
   );
@@ -180,12 +136,28 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
   },
+  brandRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   brandLabel: {
     color: colors.onBrandSecondary,
     letterSpacing: 3,
     fontFamily: typography.textBold,
     fontSize: 12,
     opacity: 0.9,
+  },
+  memberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderRadius: radius.pill,
+  },
+  memberChipText: {
+    color: "#D1FAE5",
+    fontFamily: typography.textBold,
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
   eyebrow: {
     color: "#D1FAE5",
@@ -215,48 +187,35 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: colors.brandPrimary,
-    height: 68,
+    height: 66,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 10,
   },
-  primaryBtnDisabled: { backgroundColor: colors.borderStrong },
   primaryBtnText: {
     color: colors.onBrandPrimary,
     fontFamily: typography.textBold,
-    fontSize: 18,
-    letterSpacing: 1.5,
+    fontSize: 16,
+    letterSpacing: 1.2,
   },
-  secondaryBtn: {
+  secondaryBigBtn: {
     marginTop: spacing.md,
-    height: 52,
+    height: 60,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandTertiary,
+    borderWidth: 1,
+    borderColor: colors.brand,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
   },
-  secondaryBtnText: {
+  secondaryBigBtnText: {
     color: colors.brand,
     fontFamily: typography.textBold,
     fontSize: 15,
-  },
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.xl,
-  },
-  statusText: {
-    color: colors.onSurfaceSecondary,
-    fontFamily: typography.text,
-    fontSize: 14,
-  },
-  statusHint: {
-    color: colors.muted,
-    fontFamily: typography.text,
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: spacing.md,
+    letterSpacing: 1,
   },
 });
