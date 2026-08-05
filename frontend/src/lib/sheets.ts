@@ -74,7 +74,7 @@ export async function exportToGoogleSheet(
   }
 }
 
-/** Format the pair-scoring export sheet name: `YYYYMMDD-COURSE` (local time).
+/** Format the pair-scoring export sheet name: `COURSE-YYYYMMDD` (local time).
  *  All rounds played on the same day at the same course collate as rows in this one tab. */
 export function formatFilename(
   _memberId: string,
@@ -87,7 +87,7 @@ export function formatFilename(
     d.getFullYear().toString() +
     pad(d.getMonth() + 1) +
     pad(d.getDate());
-  return `${ymd}-${courseShortId}`;
+  return `${courseShortId}-${ymd}`;
 }
 
 /** CSV for a single verified player card (used by pair-scoring export). */

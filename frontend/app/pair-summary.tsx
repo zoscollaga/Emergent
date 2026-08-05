@@ -501,7 +501,7 @@ function SetupModal({
   const d = JSON.parse(e.postData.contents);
   const rows = Utilities.parseCsv(d.csv);       // [header, data]
   const ss = SpreadsheetApp.getActive();
-  const name = d.filename || 'Round';           // e.g. "20260804-1423"
+  const name = d.filename || 'Round';           // e.g. "1423-20260804"
   let sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
