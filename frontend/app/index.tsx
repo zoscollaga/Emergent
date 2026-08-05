@@ -122,6 +122,14 @@ export default function HomeScreen() {
           <Ionicons name="people" size={20} color={colors.brand} />
           <Text style={styles.secondaryBigBtnText}>PLAY WITH A MARKER</Text>
         </Pressable>
+        <Pressable
+          testID="members-button"
+          onPress={() => router.push("/members")}
+          style={({ pressed }) => [styles.tertiaryBtn, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="list" size={18} color={colors.onSurfaceSecondary} />
+          <Text style={styles.tertiaryBtnText}>MEMBERS</Text>
+        </Pressable>
       </SafeAreaView>
     </View>
   );
@@ -217,5 +225,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.textBold,
     fontSize: 15,
     letterSpacing: 1,
+  },
+  tertiaryBtn: {
+    marginTop: spacing.sm,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  tertiaryBtnText: {
+    color: colors.onSurfaceSecondary,
+    fontFamily: typography.textBold,
+    fontSize: 13,
+    letterSpacing: 1.5,
   },
 });

@@ -38,6 +38,15 @@ const K_EXPORTED_ROUNDS = 'gs.exportedRounds';
 const K_DEVICE_ID = 'gs.deviceId';
 const K_MEMBER_ID = 'gs.memberId';
 const K_ACTIVE_SESSION = 'gs.activeSession';
+const K_MEMBERS_WEBHOOK = 'gs.membersWebhook';
+
+export async function getMembersWebhook(): Promise<string | null> {
+  const v = await AsyncStorage.getItem(K_MEMBERS_WEBHOOK);
+  return v && v.trim() ? v.trim() : null;
+}
+export async function setMembersWebhook(url: string) {
+  await AsyncStorage.setItem(K_MEMBERS_WEBHOOK, url.trim());
+}
 
 export async function getDeviceId(): Promise<string> {
   let id = await AsyncStorage.getItem(K_DEVICE_ID);
