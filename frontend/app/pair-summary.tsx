@@ -273,8 +273,10 @@ export default function PairSummary() {
         <View style={styles.exportInfo}>
           <Ionicons name="cloud-upload-outline" size={16} color={colors.brand} />
           <Text style={styles.exportInfoText}>
-            Submitting will export your MARKER{"\u2019"}s card as{"\n"}
+            Will add a row to the{" "}
             <Text style={{ fontFamily: typography.textBold }}>{previewFilename}</Text>
+            {" "}tab for player{" "}
+            <Text style={{ fontFamily: typography.textBold }}>{partner?.member_id ?? "----"}</Text>.
           </Text>
         </View>
 
@@ -456,13 +458,24 @@ function SetupModal({
               <Text style={styles.codeText} selectable>
 {`function doPost(e){
   const d = JSON.parse(e.postData.contents);
-  const rows = Utilities.parseCsv(d.csv);
+  const rows = Utilities.parseCsv(d.csv);       // [header, data]
   const ss = SpreadsheetApp.getActive();
-  const name = d.filename || 'Round';
+  const name = d.filename || 'Round';           // e.g. "20260804-1423"
   let sh = ss.getSheetByName(name);
-  if (sh) sh.clear(); else sh = ss.insertSheet(name);
-  sh.getRange(1,1,rows.length,rows[0].length).setValues(rows);
-  sh.setFrozenRows(1);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,rows[0].length).setValues([rows[0]]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  // Upsert by Player Member ID (column D)
+  const playerId = String(rows[1][3]);
+  const data = sh.getDataRange().getValues();
+  let target = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][3]) === playerId) { target = i + 1; break; }
+  }
+  const row = target || (sh.getLastRow() + 1);
+  sh.getRange(row, 1, 1, rows[1].length).setValues([rows[1]]);
   return ContentService.createTextOutput('ok');
 }`}
               </Text>

@@ -74,21 +74,20 @@ export async function exportToGoogleSheet(
   }
 }
 
-/** Format the pair-scoring export filename: `MEMBER-YYYYMMDDHHMM-COURSE` (local time). */
+/** Format the pair-scoring export sheet name: `YYYYMMDD-COURSE` (local time).
+ *  All rounds played on the same day at the same course collate as rows in this one tab. */
 export function formatFilename(
-  memberId: string,
+  _memberId: string,
   startedAtIso: string,
   courseShortId: string,
 ): string {
   const d = new Date(startedAtIso);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const ts =
+  const ymd =
     d.getFullYear().toString() +
     pad(d.getMonth() + 1) +
-    pad(d.getDate()) +
-    pad(d.getHours()) +
-    pad(d.getMinutes());
-  return `${memberId}-${ts}-${courseShortId}`;
+    pad(d.getDate());
+  return `${ymd}-${courseShortId}`;
 }
 
 /** CSV for a single verified player card (used by pair-scoring export). */
