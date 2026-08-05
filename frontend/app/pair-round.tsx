@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -219,10 +220,12 @@ export default function PairRoundScreen() {
       </View>
 
       <View style={styles.holeCard}>
-        <Text style={styles.holeEyebrow}>HOLE</Text>
-        <View style={styles.holeNumberRow}>
-          <Text style={styles.holeNumber} testID="hole-number">{currentHole}</Text>
-          <Text style={styles.holeOf}>/ 18</Text>
+        <View style={styles.holeCardLeft}>
+          <Text style={styles.holeEyebrow}>HOLE</Text>
+          <View style={styles.holeNumberRow}>
+            <Text style={styles.holeNumber} testID="hole-number">{currentHole}</Text>
+            <Text style={styles.holeOf}>/ 18</Text>
+          </View>
         </View>
         <View style={styles.metaRow}>
           <MetaCell label="Par" value={String(hole.par)} testID="hole-par" />
@@ -233,39 +236,45 @@ export default function PairRoundScreen() {
         </View>
       </View>
 
-      <View style={styles.grid}>
-        <FieldRow
-          title={`PLAYER (${me?.member_id ?? "----"})`}
-          scoreLabel="Score"
-          scoreValue={entry.player_score}
-          puttsValue={entry.player_putts}
-          par={hole.par}
-          state={rowState}
-          onScoreMinus={() => updateField("player_score", -1)}
-          onScorePlus={() => updateField("player_score", +1)}
-          onPuttsMinus={() => updateField("player_putts", -1)}
-          onPuttsPlus={() => updateField("player_putts", +1)}
-          testID="player"
-        />
-        <FieldRow
-          title={`MARKER (${partner?.member_id ?? "----"})`}
-          scoreLabel="Score"
-          scoreValue={entry.marker_score}
-          puttsValue={entry.marker_putts}
-          par={hole.par}
-          state={rowState}
-          onScoreMinus={() => updateField("marker_score", -1)}
-          onScorePlus={() => updateField("marker_score", +1)}
-          onPuttsMinus={() => updateField("marker_putts", -1)}
-          onPuttsPlus={() => updateField("marker_putts", +1)}
-          testID="marker"
-        />
-      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.grid}>
+          <FieldRow
+            title={`PLAYER (${me?.member_id ?? "----"})`}
+            scoreLabel="Score"
+            scoreValue={entry.player_score}
+            puttsValue={entry.player_putts}
+            par={hole.par}
+            state={rowState}
+            onScoreMinus={() => updateField("player_score", -1)}
+            onScorePlus={() => updateField("player_score", +1)}
+            onPuttsMinus={() => updateField("player_putts", -1)}
+            onPuttsPlus={() => updateField("player_putts", +1)}
+            testID="player"
+          />
+          <FieldRow
+            title={`MARKER (${partner?.member_id ?? "----"})`}
+            scoreLabel="Score"
+            scoreValue={entry.marker_score}
+            puttsValue={entry.marker_putts}
+            par={hole.par}
+            state={rowState}
+            onScoreMinus={() => updateField("marker_score", -1)}
+            onScorePlus={() => updateField("marker_score", +1)}
+            onPuttsMinus={() => updateField("marker_putts", -1)}
+            onPuttsPlus={() => updateField("marker_putts", +1)}
+            testID="marker"
+          />
+        </View>
 
-      <View style={styles.statusBar}>
-        <StatusBadge state={rowState} bothSubmitted={bothSubmitted} mine={!!mySubmission} />
-        {error && <Text style={styles.errorText} testID="pair-round-error">{error}</Text>}
-      </View>
+        <View style={styles.statusBar}>
+          <StatusBadge state={rowState} bothSubmitted={bothSubmitted} mine={!!mySubmission} />
+          {error && <Text style={styles.errorText} testID="pair-round-error">{error}</Text>}
+        </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
@@ -532,37 +541,40 @@ const styles = StyleSheet.create({
   holeCard: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.md,
-    padding: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     backgroundColor: colors.brand,
     borderRadius: radius.lg,
+    flexDirection: "row",
     alignItems: "center",
+    gap: spacing.md,
   },
+  holeCardLeft: { alignItems: "center", minWidth: 72 },
   holeEyebrow: {
     color: "#D1FAE5",
     fontFamily: typography.text,
     letterSpacing: 3,
-    fontSize: 11,
-    marginBottom: 4,
+    fontSize: 10,
+    marginBottom: 2,
   },
   holeNumberRow: { flexDirection: "row", alignItems: "flex-end" },
   holeNumber: {
     color: colors.onBrandSecondary,
     fontFamily: typography.display,
-    fontSize: 52,
-    lineHeight: 56,
+    fontSize: 42,
+    lineHeight: 44,
   },
   holeOf: {
     color: "#A7F3D0",
     fontFamily: typography.display,
-    fontSize: 20,
-    marginLeft: 6,
-    marginBottom: 8,
+    fontSize: 16,
+    marginLeft: 4,
+    marginBottom: 6,
   },
   metaRow: {
-    marginTop: spacing.md,
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "stretch",
     justifyContent: "space-between",
   },
   metaCell: { flex: 1, alignItems: "center" },
@@ -579,11 +591,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   metaDivider: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.15)" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: spacing.md },
   grid: {
-    flex: 1,
     paddingHorizontal: spacing.xl,
     gap: spacing.md,
-    justifyContent: "center",
   },
   rowCard: {
     borderRadius: radius.lg,

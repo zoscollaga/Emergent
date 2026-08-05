@@ -1,0 +1,24 @@
+{
+  "summary": "Layout bug fix verified on Pair Round screen. Tested at 390x844, 375x667 and 320x568. In all three viewports the MARKER row's Putts stepper (marker-putts-value / marker-putts-minus / marker-putts-plus) is fully rendered, not occluded, and interactable — clicking the + button without force=True increments the value from '-' to '3' and the - button decrements to '2' (initial default = par/2 on first tap per stepper behaviour). Hole card (Hole 1/18 + Par 4 / Distance 317m / Index 11) is visible and pinned at the top; footer (Previous + Submit hole/Next Hole) is pinned at the bottom on every viewport (submit-btn bottom <= viewport height). PLAYER + MARKER row cards + status badge are wrapped in the ScrollView between them and remain reachable. Regression on pair scoring behaviour verified end-to-end via API + UI on iPhone SE: initial submit -> hole_status 'pending'; second device mismatch -> 'mismatch' (rows red, no Next Hole); resubmit matching -> 'verified' (marker-row/player-row border color rgb(22,163,74) success green, badge 'Verified. Tap Next Hole to continue.', Next Hole button visible, Submit hole hidden). After tap Next Hole advanced to hole 2 correctly. Solo /round route file (round.tsx) is separate and untouched by the fix. No deprecated Expo packages detected. No red screen or console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pair_flow.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "pair-round.tsx line 191-200 rowState logic still has the redundant/collapsing branch noted in iteration 2 - safe but dead-ish code.",
+    "On iPhone 5 320x568 the ScrollView area is tight: bounding boxes show status-badge y=488..544 while footer submit-btn starts at y=494, so the badge visually sits over the top edge of the footer padding zone (still scrollable so the button is still reachable in the pinned footer). Not a bug, but a minor design polish could increase footer top margin on very short viewports."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only task)", "frontend": "100% (3/3 viewports + regression)"},
+  "seed_data_creation": "Created one paired session for testing: sid=e2f7d168-df24-4115-af4e-0e16e42ee7bb with two dummy device_ids (testA_layout member 2314, testB_layout member 7788). Hole 1 was submitted matching and verified as part of the regression test. Left in DB - low impact.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To test pair-round layout: run localStorage.clear then set gs.deviceId=<deviceA> and gs.memberId=<4digits> in the same page before navigating to /pair-round?sid=<sid>. Steppers start at par (score) or 2 (putts) on the first tap when previous value is null. Submit endpoint is POST /api/sessions/{sid}/holes/{n}/submit (not just /holes/{n})."
+}
