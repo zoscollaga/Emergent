@@ -458,9 +458,9 @@ function SetupModal({
   const d = JSON.parse(e.postData.contents);
   const rows = Utilities.parseCsv(d.csv);
   const ss = SpreadsheetApp.getActive();
-  let name = d.filename || 'Round', i = 2, base = name;
-  while (ss.getSheetByName(name)) name = base + ' (' + (i++) + ')';
-  const sh = ss.insertSheet(name);
+  const name = d.filename || 'Round';
+  let sh = ss.getSheetByName(name);
+  if (sh) sh.clear(); else sh = ss.insertSheet(name);
   sh.getRange(1,1,rows.length,rows[0].length).setValues(rows);
   sh.setFrozenRows(1);
   return ContentService.createTextOutput('ok');

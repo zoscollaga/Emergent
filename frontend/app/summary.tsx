@@ -308,9 +308,12 @@ function SetupModal({
 {`function doPost(e){
   const data = JSON.parse(e.postData.contents);
   const rows = Utilities.parseCsv(data.csv);
-  const sh = SpreadsheetApp.getActive().getSheets()[0];
-  if (sh.getLastRow() === 0) sh.appendRow(rows[0]);
-  sh.appendRow(rows[1]);
+  const ss = SpreadsheetApp.getActive();
+  const name = data.filename || 'Round';
+  let sh = ss.getSheetByName(name);
+  if (sh) sh.clear(); else sh = ss.insertSheet(name);
+  sh.getRange(1,1,rows.length,rows[0].length).setValues(rows);
+  sh.setFrozenRows(1);
   return ContentService.createTextOutput('ok');
 }`}
               </Text>
