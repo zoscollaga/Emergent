@@ -1,4 +1,5 @@
 export type Member = {
+  member_id: string;
   first_name: string;
   last_name: string;
   handicap: number | null;
@@ -27,6 +28,7 @@ export async function fetchMembers(webhookUrl: string): Promise<{
       const data = JSON.parse(text);
       const raw: any[] = Array.isArray(data) ? data : data.members || [];
       const members: Member[] = raw.map((r) => ({
+        member_id: String(r.member_id ?? r.memberId ?? r.id ?? "").trim(),
         first_name: String(r.first_name ?? r.firstName ?? ""),
         last_name: String(r.last_name ?? r.lastName ?? ""),
         handicap:

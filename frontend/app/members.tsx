@@ -79,7 +79,11 @@ export default function MembersScreen() {
     if (!q) return members;
     return members.filter((m) => {
       const full = `${m.first_name} ${m.last_name}`.toLowerCase();
-      return full.includes(q) || m.mobile.replace(/\s/g, "").includes(q);
+      return (
+        full.includes(q) ||
+        m.mobile.replace(/\s/g, "").includes(q) ||
+        m.member_id.toLowerCase().includes(q)
+      );
     });
   }, [members, query]);
 
@@ -141,7 +145,7 @@ export default function MembersScreen() {
             testID="members-search-input"
             value={query}
             onChangeText={setQuery}
-            placeholder="Search name or number"
+            placeholder="Search name, ID or number"
             placeholderTextColor={colors.muted}
             style={styles.searchInput}
             autoCorrect={false}
@@ -212,19 +216,26 @@ function isCurrent(status: string): boolean {
 
 function MemberRow({ member }: { member: Member }) {
   const active = isCurrent(member.status);
-  const testID = `member-${member.first_name}-${member.last_name}`.toLowerCase().replace(/\s+/g, "-");
+  const testID = `member-${member.member_id || member.last_name}`.toLowerCase().replace(/\s+/g, "-");
   const callable = member.mobile.replace(/[^0-9+]/g, "");
   return (
     <View style={styles.row} testID={testID}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
+      <View style={[styles.avatar, !active && { backgroundColor: colors.surfaceSecondary }]}>
+        <Text style={[styles.avatarText, !active && { color: colors.muted }]}>
           {(member.first_name[0] || "?") + (member.last_name[0] || "")}
         </Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.name} numberOfLines={1}>
-          {member.first_name} {member.last_name}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {member.first_name} {member.last_name}
+          </Text>
+          {member.member_id ? (
+            <View style={styles.idBadge} testID={`${testID}-id`}>
+              <Text style={styles.idBadgeText}>#{member.member_id}</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.metaRow}>
           <View
             style={[
@@ -295,9 +306,9 @@ function SetupModal({
               <Text style={styles.sheetTitle}>Connect Members Sheet</Text>
               <Text style={styles.sheetBody}>
                 1. Create a spreadsheet named{" "}
-                <Text style={{ fontFamily: typography.textBold }}>Members</Text> with these columns
-                in row 1:{"\n"}
-                First Name · Last Name · Handicap · Status · Mobile
+                <Text style={{ fontFamily: typography.textBold }}>Members</Text> with these
+                columns in row 1:{"\n"}
+                Member ID · First Name · Last Name · Handicap · Status · Mobile
               </Text>
               <Text style={styles.sheetBody}>
                 2. Extensions → Apps Script. Paste this and Save:
@@ -309,9 +320,10 @@ function SetupModal({
   const values = sh.getDataRange().getValues();
   const [header, ...rows] = values;
   const H = (n) => header.findIndex(h => String(h).trim().toLowerCase() === n);
-  const cols = { first:H('first name'), last:H('last name'),
+  const cols = { id:H('member id'), first:H('first name'), last:H('last name'),
                  hcp:H('handicap'), status:H('status'), mobile:H('mobile') };
   const members = rows.filter(r => r[cols.first] || r[cols.last]).map(r => ({
+    member_id : String(r[cols.id] ?? '').trim(),
     first_name: String(r[cols.first] ?? ''),
     last_name : String(r[cols.last] ?? ''),
     handicap  : (r[cols.hcp] === '' || r[cols.hcp] == null) ? null : Number(r[cols.hcp]),
@@ -435,7 +447,22 @@ const styles = StyleSheet.create({
     color: colors.brand,
     letterSpacing: 0.5,
   },
-  name: { fontFamily: typography.textBold, fontSize: 16, color: colors.onSurface },
+  name: { fontFamily: typography.textBold, fontSize: 16, color: colors.onSurface, flexShrink: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  idBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  idBadgeText: {
+    fontFamily: typography.textBold,
+    fontSize: 10,
+    color: colors.onSurfaceSecondary,
+    letterSpacing: 0.5,
+  },
   metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 4 },
   metaDot: { color: colors.borderStrong },
   metaText: { color: colors.muted, fontFamily: typography.text, fontSize: 12 },
