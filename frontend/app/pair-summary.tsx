@@ -40,7 +40,7 @@ type ExportState =
   | { kind: "idle" }
   | { kind: "sending" }
   | { kind: "success" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; hint?: string; details?: string };
 
 export default function PairSummary() {
   const router = useRouter();
@@ -158,11 +158,32 @@ export default function PairSummary() {
       setExportState({ kind: "success" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } else {
-      const msg =
-        result.status === 0
-          ? "Network error. Check your webhook URL and connection."
-          : `Sheet rejected the request (HTTP ${result.status}).`;
-      setExportState({ kind: "error", message: msg });
+      let message: string;
+      let hint: string | undefined;
+      if (result.status === 0) {
+        message = "Network error.";
+        hint = "Check your internet connection and the webhook URL.";
+      } else if (result.status === 404) {
+        message = "URL not found (HTTP 404).";
+        hint =
+          "The web app URL is wrong or the deployment was archived. Open Apps Script → Deploy → Manage deployments, click ✏️ Edit → Deploy, and copy the current .../exec URL. Paste it in the ⚙️ settings.";
+      } else if (result.status === 401 || result.status === 403) {
+        message = `Not authorised (HTTP ${result.status}).`;
+        hint =
+          "Deployment access must be set to Anyone. On a Workspace domain you may need admin approval or use a personal @gmail.com to host the script.";
+      } else if (result.status >= 500) {
+        message = `Script error (HTTP ${result.status}).`;
+        hint =
+          "Check the Apps Script Executions log for the error, or re-deploy a new version.";
+      } else {
+        message = `Sheet rejected the request (HTTP ${result.status}).`;
+      }
+      setExportState({
+        kind: "error",
+        message,
+        hint,
+        details: result.message,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     }
   };
@@ -184,6 +205,12 @@ export default function PairSummary() {
     if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(url)) {
       setSetupError(
         "That doesn't look like an Apps Script web app URL. It should start with https://script.google.com/",
+      );
+      return;
+    }
+    if (!/\/(exec|dev)(\?.*)?$/i.test(url)) {
+      setSetupError(
+        "This URL is missing /exec. In Apps Script open Deploy → Manage deployments and copy the Web app URL (it ends with …/exec).",
       );
       return;
     }
@@ -305,7 +332,21 @@ export default function PairSummary() {
         {exportState.kind === "error" && (
           <View style={styles.errorBanner} testID="export-error-banner">
             <Ionicons name="alert-circle" size={16} color={colors.error} />
-            <Text style={styles.errorBannerText}>{exportState.message}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorBannerText} testID="export-error-message">
+                {exportState.message}
+              </Text>
+              {exportState.hint && (
+                <Text style={styles.errorHintText} testID="export-error-hint">
+                  {exportState.hint}
+                </Text>
+              )}
+              {exportState.details && (
+                <Text style={styles.errorDetailsText} testID="export-error-details" numberOfLines={4}>
+                  Server said: {exportState.details}
+                </Text>
+              )}
+            </View>
           </View>
         )}
         {exportState.kind === "success" && (
@@ -659,7 +700,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: spacing.md,
   },
-  errorBannerText: { flex: 1, color: "#991B1B", fontFamily: typography.text, fontSize: 12 },
+  errorBannerText: { color: "#991B1B", fontFamily: typography.textBold, fontSize: 13 },
+  errorHintText: { marginTop: 4, color: "#991B1B", fontFamily: typography.text, fontSize: 12, lineHeight: 16 },
+  errorDetailsText: { marginTop: 6, color: "#7F1D1D", fontFamily: typography.text, fontSize: 11, lineHeight: 14 },
   successBanner: {
     flexDirection: "row",
     gap: spacing.sm,
