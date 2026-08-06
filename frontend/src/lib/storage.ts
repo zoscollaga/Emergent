@@ -39,6 +39,28 @@ const K_DEVICE_ID = 'gs.deviceId';
 const K_MEMBER_ID = 'gs.memberId';
 const K_ACTIVE_SESSION = 'gs.activeSession';
 const K_MEMBERS_WEBHOOK = 'gs.membersWebhook';
+const K_IDENTIFIED_MEMBER = 'gs.identifiedMember';
+
+export type IdentifiedMember = {
+  member_id: string;
+  first_name: string;
+  last_name: string;
+  handicap: number | null;
+  status: string;
+  mobile: string;
+};
+
+export async function getIdentifiedMember(): Promise<IdentifiedMember | null> {
+  const raw = await AsyncStorage.getItem(K_IDENTIFIED_MEMBER);
+  return raw ? JSON.parse(raw) : null;
+}
+export async function setIdentifiedMember(m: IdentifiedMember) {
+  await AsyncStorage.setItem(K_IDENTIFIED_MEMBER, JSON.stringify(m));
+  await AsyncStorage.setItem(K_MEMBER_ID, m.member_id);
+}
+export async function clearIdentifiedMember() {
+  await AsyncStorage.removeItem(K_IDENTIFIED_MEMBER);
+}
 
 export async function getMembersWebhook(): Promise<string | null> {
   const v = await AsyncStorage.getItem(K_MEMBERS_WEBHOOK);

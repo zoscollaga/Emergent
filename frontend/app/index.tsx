@@ -8,8 +8,9 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import {
+  IdentifiedMember,
   StoredCourse,
-  getMemberId,
+  getIdentifiedMember,
   getSelectedCourse,
   setSelectedCourse,
 } from "@/src/lib/storage";
@@ -46,7 +47,7 @@ const KEILOR: StoredCourse = {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [memberId, setMemberId] = useState<string>("");
+  const [identity, setIdentity] = useState<IdentifiedMember | null>(null);
 
   const refresh = useCallback(async () => {
     // Persist Keilor as the selected course. If a stale different course was saved,
@@ -55,7 +56,7 @@ export default function HomeScreen() {
     if (!cached || cached.id !== KEILOR.id) {
       await setSelectedCourse(KEILOR);
     }
-    setMemberId(await getMemberId());
+    setIdentity(await getIdentifiedMember());
   }, []);
 
   useEffect(() => {
@@ -84,17 +85,20 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.heroContent} edges={["top"]}>
           <View style={styles.brandRow}>
             <Text style={styles.brandLabel} testID="brand-label">GOLF SCORECARD</Text>
-            {memberId ? (
-              <Pressable
-                onPress={() => router.push("/profile")}
-                hitSlop={12}
-                testID="profile-button"
-                style={styles.memberChip}
-              >
-                <Ionicons name="person-circle" size={14} color="#D1FAE5" />
-                <Text style={styles.memberChipText}>Member {memberId}</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              onPress={() => router.push("/identify")}
+              hitSlop={12}
+              testID="identity-chip"
+              style={({ pressed }) => [styles.memberChip, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="person-circle" size={14} color="#D1FAE5" />
+              <Text style={styles.memberChipText} numberOfLines={1}>
+                {identity
+                  ? `${identity.first_name} ${identity.last_name}${identity.member_id ? " · #" + identity.member_id : ""}`
+                  : "Choose your name"}
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color="#D1FAE5" />
+            </Pressable>
           </View>
           <View style={{ flex: 1 }} />
           <Text style={styles.eyebrow}>Today{"\u2019"}s course</Text>
@@ -155,17 +159,19 @@ const styles = StyleSheet.create({
   memberChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: "rgba(255,255,255,0.14)",
     borderRadius: radius.pill,
+    maxWidth: 240,
   },
   memberChipText: {
     color: "#D1FAE5",
     fontFamily: typography.textBold,
-    fontSize: 11,
-    letterSpacing: 0.5,
+    fontSize: 12,
+    letterSpacing: 0.3,
+    flexShrink: 1,
   },
   eyebrow: {
     color: "#D1FAE5",
