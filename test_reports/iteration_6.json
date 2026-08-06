@@ -1,0 +1,20 @@
+{
+  "summary": "Retest of the 'network' scenario on /signup after fix. PASS. Mocked window.fetch to throw TypeError('Failed to fetch') for script.google.com URLs (via page.add_init_script) and seeded localStorage 'gs.membersWebhook'. Filled first_name=Test, last_name=User, email=test.user@example.com, mobile=0412345678, handicap=12, then tapped submit. The signup-banner-error is rendered with message 'Network error.' and the hint text contains 'Failed to fetch'. Full banner text observed: \"Network error.Couldn't reach the Members webhook. Check your connection and the /exec URL in Members → ⚙️. Underlying error: Failed to fetch\".",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_6.json"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100% (1/1)" },
+  "seed_data_creation": "localStorage.gs.membersWebhook set to https://script.google.com/macros/s/TEST/exec via init script; window.fetch mocked to reject with TypeError('Failed to fetch') for script.google.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Network-error hint now correctly surfaces underlying JS fetch error via res.message concat in /app/frontend/app/signup.tsx line 104. All signup error scenarios verified across iterations 5 & 6.",
+  "rca_of_issue": "Previous iteration fix confirmed working: signup.tsx status===0 branch now appends ' Underlying error: ' + res.message to the static hint, so users see the actual browser error (e.g., 'Failed to fetch')."
+}
