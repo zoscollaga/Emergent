@@ -76,6 +76,7 @@ export async function signUpStart(
   webhookUrl: string,
   payload: SignUpPayload,
 ): Promise<SignUpStartResult> {
+  let text = "";
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -83,22 +84,38 @@ export async function signUpStart(
       body: JSON.stringify({ action: "signup_start", ...payload }),
       redirect: "follow" as RequestRedirect,
     });
-    const text = await res.text().catch(() => "");
+    text = await res.text().catch(() => "");
     if (!res.ok) return { ok: false, duplicate: false, status: res.status, message: text.slice(0, 200) };
-    const data = JSON.parse(text);
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // The webhook returned non-JSON — almost always means the Apps Script
+      // hasn't been updated to include the new doPost handler.
+      return {
+        ok: false,
+        duplicate: false,
+        status: 200,
+        message:
+          "The Members webhook responded but not with JSON. Update your Apps Script to the latest version (with doPost handling signup_start / signup_verify), redeploy, and try again. Raw response: " +
+          text.slice(0, 160),
+      };
+    }
     if (data.duplicate) {
-      const m = data.member || {};
       return {
         ok: false,
         duplicate: true,
         match_field: (data.match_field as "email" | "mobile") || "email",
-        member: normaliseMember(m),
+        member: normaliseMember(data.member || {}),
       };
     }
     if (data.pending) {
       return { ok: true, pending: true, email: String(data.email || payload.email), expires_at: Number(data.expires_at || 0) };
     }
-    return { ok: false, duplicate: false, status: res.status, message: text.slice(0, 200) };
+    if (data.error) {
+      return { ok: false, duplicate: false, status: 200, message: String(data.error) };
+    }
+    return { ok: false, duplicate: false, status: 200, message: "Unexpected response: " + text.slice(0, 160) };
   } catch (e: any) {
     return { ok: false, duplicate: false, status: 0, message: String(e?.message || e) };
   }
@@ -111,6 +128,7 @@ export async function signUpVerify(
   email: string,
   code: string,
 ): Promise<SignUpVerifyResult> {
+  let text = "";
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -118,9 +136,20 @@ export async function signUpVerify(
       body: JSON.stringify({ action: "signup_verify", email, code }),
       redirect: "follow" as RequestRedirect,
     });
-    const text = await res.text().catch(() => "");
+    text = await res.text().catch(() => "");
     if (!res.ok) return { ok: false, status: res.status, message: text.slice(0, 200) };
-    const data = JSON.parse(text);
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return {
+        ok: false,
+        status: 200,
+        message:
+          "The Members webhook responded but not with JSON. Update your Apps Script and redeploy. Raw response: " +
+          text.slice(0, 160),
+      };
+    }
     if (data.member) return { ok: true, member: normaliseMember(data.member) };
     return {
       ok: false,

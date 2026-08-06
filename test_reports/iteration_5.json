@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only regression for /signup error handling. 5 of 6 requested behaviours pass. FAIL: the genuine-network-error branch still surfaces the vague generic hint ('Check your internet connection, and confirm the /exec URL...') and does NOT include the underlying JS error message (e.g. 'Failed to fetch'). The signup.tsx status===0 branch overwrites res.message with a hardcoded hint. PASS: html_no_doPost shows 'Members webhook responded, but with an unexpected reply.' + 'Update your Apps Script' hint + raw HTML preview; 404 shows 'Sign-up failed (HTTP 404).' + 'Redeploy the Apps Script Web app' hint; duplicate JSON shows amber banner with member card + 'This is me' button; pending JSON navigates to /verify-signup?email=brand.new@example.com and renders verify screen; handicap is required (submit disabled when empty or non-numeric).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "signup.tsx submit handler (network branch)",
+        "issue": "When fetch throws (res.status === 0), the banner hint is a static string and does NOT include res.message (the underlying browser error like 'Failed to fetch'). The review request explicitly asks for the underlying JS error to be surfaced in the hint. Fix: in /app/frontend/app/signup.tsx around lines 102-105, include res.message in the hint, e.g. hint = `Couldn't reach the Members webhook. Underlying error: ${res.message}. Check your internet connection and the /exec URL in Members → ⚙️.`",
+        "testID": "signup-banner-error",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_5.json"],
+  "action_items": [
+    "In /app/frontend/app/signup.tsx (submit function, status===0 branch, lines 102-105), stop hardcoding the hint. Include res.message so the underlying JS error (e.g. 'Failed to fetch', 'NetworkError when attempting to fetch resource') is shown to the user. This is the whole point of this bug fix per the review request."
+  ],
+  "critical_code_review_comments": [
+    "signup.tsx line 102-105: hint is hardcoded and ignores res.message returned by signUpStart's catch block. Inconsistent with the new html_no_doPost branch (line 114) which correctly forwards res.message."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "83% (5/6)" },
+  "seed_data_creation": "None. localStorage.gs.membersWebhook seeded via init script; window.fetch mocked to script.google.com to return html_no_doPost / network throw / 404 / duplicate JSON / pending JSON.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 5 mock modes work via init script `window.__setupMock(mode)` seeded before page.goto. Retest only the 'network' mode after main agent updates signup.tsx status===0 branch to surface res.message.",
+  "rca_of_issue": "In /app/frontend/app/signup.tsx submit(), when signUpStart returns {ok:false, status:0, message:'Failed to fetch'} (from lib/members.ts line 120), the switch overwrites the hint with the old vague message instead of using res.message. Fix: change the res.status===0 branch to include res.message in the hint text."
+}

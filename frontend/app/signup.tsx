@@ -101,11 +101,17 @@ export default function SignUpScreen() {
       let hint: string | undefined;
       if (res.status === 0) {
         msg = "Network error.";
-        hint = "Check your connection and the Members webhook URL.";
+        hint =
+          "Couldn't reach the Members webhook. Check your internet connection, and confirm the /exec URL in Members → ⚙️ is current.";
       } else if (res.status === 404) {
         hint = "Your Members webhook returned 404. Redeploy the Apps Script Web app and update the URL in Members → ⚙️.";
       } else if (res.status === 401 || res.status === 403) {
         hint = "Deployment access must be set to Anyone.";
+      } else if (res.status === 200) {
+        // Handled response but not the expected shape — usually the Apps Script
+        // hasn't been updated to the new signup_start / signup_verify handlers yet.
+        msg = "Members webhook responded, but with an unexpected reply.";
+        hint = res.message;
       } else {
         hint = res.message;
       }
