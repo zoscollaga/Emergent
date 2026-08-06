@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { signUpMember, Member } from "@/src/lib/members";
+import { signUpStart, Member } from "@/src/lib/members";
 import { getMembersWebhook, setIdentifiedMember } from "@/src/lib/storage";
 
 export default function SignUpScreen() {
@@ -38,7 +38,9 @@ export default function SignUpScreen() {
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     /^\S+@\S+\.\S+$/.test(email.trim()) &&
-    /^[0-9+\s-]{8,}$/.test(mobile.trim());
+    /^[0-9+\s-]{8,}$/.test(mobile.trim()) &&
+    handicap.trim().length > 0 &&
+    Number.isFinite(Number(handicap));
 
   const setAsMe = async (m: Member) => {
     await setIdentifiedMember({
@@ -64,28 +66,25 @@ export default function SignUpScreen() {
       return;
     }
     setSubmitting(true);
-    const hcp = handicap.trim() === "" ? null : Number(handicap);
-    const res = await signUpMember(url, {
+    const res = await signUpStart(url, {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.trim(),
       mobile: mobile.trim(),
-      handicap: Number.isFinite(hcp as number) ? (hcp as number) : null,
+      handicap: Number(handicap),
     });
     setSubmitting(false);
 
-    if (res.ok) {
-      setBanner({
-        kind: "success",
-        message: `Welcome, ${res.member.first_name}!`,
-        hint: `Assigned Member ID #${res.member.member_id}. Setting as your identity…`,
-        member: res.member,
+    if (res.ok && "pending" in res && res.pending) {
+      // Move on to the verify code screen
+      router.push({
+        pathname: "/verify-signup",
+        params: { email: res.email },
       });
-      setTimeout(() => setAsMe(res.member), 900);
       return;
     }
 
-    if (res.duplicate) {
+    if (!res.ok && res.duplicate) {
       setBanner({
         kind: "duplicate",
         message: "You're already registered.",
@@ -96,20 +95,22 @@ export default function SignUpScreen() {
       return;
     }
 
-    // hard error
-    let msg = `Sign-up failed (HTTP ${res.status}).`;
-    let hint: string | undefined;
-    if (res.status === 0) {
-      msg = "Network error.";
-      hint = "Check your connection and the Members webhook URL.";
-    } else if (res.status === 404) {
-      hint = "Your Members webhook returned 404. Redeploy the Apps Script Web app and update the URL in Members → ⚙️.";
-    } else if (res.status === 401 || res.status === 403) {
-      hint = "Deployment access must be set to Anyone.";
-    } else {
-      hint = res.message;
+    // Hard error
+    if (!res.ok) {
+      let msg = `Sign-up failed (HTTP ${res.status}).`;
+      let hint: string | undefined;
+      if (res.status === 0) {
+        msg = "Network error.";
+        hint = "Check your connection and the Members webhook URL.";
+      } else if (res.status === 404) {
+        hint = "Your Members webhook returned 404. Redeploy the Apps Script Web app and update the URL in Members → ⚙️.";
+      } else if (res.status === 401 || res.status === 403) {
+        hint = "Deployment access must be set to Anyone.";
+      } else {
+        hint = res.message;
+      }
+      setBanner({ kind: "error", message: msg, hint });
     }
-    setBanner({ kind: "error", message: msg, hint });
   };
 
   return (
@@ -167,7 +168,7 @@ export default function SignUpScreen() {
             keyboardType="phone-pad"
           />
           <Field
-            label="Handicap (optional)"
+            label="Handicap"
             value={handicap}
             onChange={setHandicap}
             testID="signup-handicap"

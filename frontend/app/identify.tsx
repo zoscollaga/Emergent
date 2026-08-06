@@ -43,14 +43,17 @@ export default function IdentifyScreen() {
     setError(null);
     const res = await fetchMembers(url);
     if (res.ok) {
-      // Only Current members are pickable
-      const currentOnly = res.members
-        .filter((m) => m.status.trim().toLowerCase() === "current")
+      // Current + Pending Approval members are pickable (Pending members can still play)
+      const pickable = res.members
+        .filter((m) => {
+          const s = m.status.trim().toLowerCase();
+          return s === "current" || s === "pending approval";
+        })
         .sort((a, b) => {
           const l = a.last_name.localeCompare(b.last_name);
           return l !== 0 ? l : a.first_name.localeCompare(b.first_name);
         });
-      setMembers(currentOnly);
+      setMembers(pickable);
     } else {
       let message = `Couldn't load members (HTTP ${res.status}).`;
       let hint: string | undefined;

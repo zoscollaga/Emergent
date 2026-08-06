@@ -213,11 +213,19 @@ export default function MembersScreen() {
 function isCurrent(status: string): boolean {
   return status.trim().toLowerCase() === "current";
 }
+function isPending(status: string): boolean {
+  return status.trim().toLowerCase() === "pending approval";
+}
 
 function MemberRow({ member }: { member: Member }) {
   const active = isCurrent(member.status);
+  const pending = isPending(member.status);
   const testID = `member-${member.member_id || member.last_name}`.toLowerCase().replace(/\s+/g, "-");
   const callable = member.mobile.replace(/[^0-9+]/g, "");
+  const chipBg = active ? colors.brandTertiary : pending ? "#FEF3C7" : colors.surfaceSecondary;
+  const chipFg = active ? colors.brand : pending ? "#92400E" : colors.onSurfaceSecondary;
+  const dotBg = active ? colors.success : pending ? "#F59E0B" : colors.borderStrong;
+  const statusLabel = active ? "Current" : pending ? "Pending" : member.status || "Non-Active";
   return (
     <View style={styles.row} testID={testID}>
       <View style={[styles.avatar, !active && { backgroundColor: colors.surfaceSecondary }]}>
@@ -237,26 +245,9 @@ function MemberRow({ member }: { member: Member }) {
           ) : null}
         </View>
         <View style={styles.metaRow}>
-          <View
-            style={[
-              styles.statusChip,
-              { backgroundColor: active ? colors.brandTertiary : colors.surfaceSecondary },
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: active ? colors.success : colors.borderStrong },
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                { color: active ? colors.brand : colors.onSurfaceSecondary },
-              ]}
-            >
-              {active ? "Current" : member.status || "Non-Active"}
-            </Text>
+          <View style={[styles.statusChip, { backgroundColor: chipBg }]}>
+            <View style={[styles.statusDot, { backgroundColor: dotBg }]} />
+            <Text style={[styles.statusText, { color: chipFg }]}>{statusLabel}</Text>
           </View>
           <Text style={styles.metaDot}>·</Text>
           <Text style={styles.metaText}>

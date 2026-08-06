@@ -59,58 +59,87 @@ export type SignUpPayload = {
   last_name: string;
   email: string;
   mobile: string;
-  handicap: number | null;
+  handicap: number;
 };
 
-export type SignUpResult =
-  | { ok: true; member: Member }
+export type SignUpStartResult =
+  | { ok: true; pending: true; email: string; expires_at: number }
   | { ok: false; duplicate: true; match_field: "email" | "mobile"; member: Member }
   | { ok: false; duplicate: false; status: number; message?: string };
 
-/** POST a new member to the Members Apps Script. The script inspects the payload;
- *  if `email` or `mobile` already exists, it returns the existing member with
- *  `duplicate: true`; otherwise it appends a new row and returns the created member. */
-export async function signUpMember(
+export type SignUpVerifyResult =
+  | { ok: true; member: Member }
+  | { ok: false; status: number; message: string };
+
+/** Start signup: server sends an email verification code and stores the pending signup. */
+export async function signUpStart(
   webhookUrl: string,
   payload: SignUpPayload,
-): Promise<SignUpResult> {
+): Promise<SignUpStartResult> {
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "signup", ...payload }),
+      body: JSON.stringify({ action: "signup_start", ...payload }),
       redirect: "follow" as RequestRedirect,
     });
     const text = await res.text().catch(() => "");
-    if (!res.ok) {
-      return { ok: false, duplicate: false, status: res.status, message: text.slice(0, 200) };
-    }
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return { ok: false, duplicate: false, status: res.status, message: `Bad JSON: ${text.slice(0, 120)}` };
-    }
-    const m = data.member || {};
-    const member: Member = {
-      member_id: String(m.member_id ?? "").trim(),
-      first_name: String(m.first_name ?? ""),
-      last_name: String(m.last_name ?? ""),
-      handicap: m.handicap == null || m.handicap === "" ? null : Number(m.handicap),
-      status: String(m.status ?? ""),
-      mobile: String(m.mobile ?? ""),
-      email: String(m.email ?? "").trim(),
-    };
+    if (!res.ok) return { ok: false, duplicate: false, status: res.status, message: text.slice(0, 200) };
+    const data = JSON.parse(text);
     if (data.duplicate) {
+      const m = data.member || {};
       return {
         ok: false,
         duplicate: true,
         match_field: (data.match_field as "email" | "mobile") || "email",
-        member,
+        member: normaliseMember(m),
       };
     }
-    return { ok: true, member };
+    if (data.pending) {
+      return { ok: true, pending: true, email: String(data.email || payload.email), expires_at: Number(data.expires_at || 0) };
+    }
+    return { ok: false, duplicate: false, status: res.status, message: text.slice(0, 200) };
   } catch (e: any) {
     return { ok: false, duplicate: false, status: 0, message: String(e?.message || e) };
   }
+}
+
+/** Verify the email code. On success the server appends the row (Status: Pending Approval)
+ *  and emails the admin. Returns the newly created member. */
+export async function signUpVerify(
+  webhookUrl: string,
+  email: string,
+  code: string,
+): Promise<SignUpVerifyResult> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "signup_verify", email, code }),
+      redirect: "follow" as RequestRedirect,
+    });
+    const text = await res.text().catch(() => "");
+    if (!res.ok) return { ok: false, status: res.status, message: text.slice(0, 200) };
+    const data = JSON.parse(text);
+    if (data.member) return { ok: true, member: normaliseMember(data.member) };
+    return {
+      ok: false,
+      status: res.status,
+      message: data.message || "Verification failed. Check the code and try again.",
+    };
+  } catch (e: any) {
+    return { ok: false, status: 0, message: String(e?.message || e) };
+  }
+}
+
+function normaliseMember(m: any): Member {
+  return {
+    member_id: String(m.member_id ?? "").trim(),
+    first_name: String(m.first_name ?? ""),
+    last_name: String(m.last_name ?? ""),
+    handicap: m.handicap == null || m.handicap === "" ? null : Number(m.handicap),
+    status: String(m.status ?? ""),
+    mobile: String(m.mobile ?? ""),
+    email: String(m.email ?? "").trim(),
+  };
 }
