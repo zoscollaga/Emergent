@@ -167,6 +167,13 @@ export default function IdentifyScreen() {
           {filtered.length === 0 ? (
             <View style={styles.center}>
               <Text style={styles.hint}>No members match.</Text>
+              <Pressable
+                onPress={() => router.push("/signup")}
+                testID="identify-signup-empty"
+                style={styles.primaryBtn}
+              >
+                <Text style={styles.primaryBtnText}>Sign up as new member</Text>
+              </Pressable>
             </View>
           ) : (
             <ScrollView
@@ -220,6 +227,14 @@ export default function IdentifyScreen() {
                   </Pressable>
                 );
               })}
+              <Pressable
+                onPress={() => router.push("/signup")}
+                testID="identify-signup-footer"
+                style={({ pressed }) => [styles.signupFooter, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="person-add-outline" size={18} color={colors.brand} />
+                <Text style={styles.signupFooterText}>Not on the list? Sign up</Text>
+              </Pressable>
             </ScrollView>
           )}
         </>
@@ -308,4 +323,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   metaText: { color: colors.muted, fontFamily: typography.text, fontSize: 12, marginTop: 2 },
+  signupFooter: {
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 52,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    borderStyle: "dashed",
+  },
+  signupFooterText: {
+    color: colors.brand,
+    fontFamily: typography.textBold,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
 });
