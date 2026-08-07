@@ -18,7 +18,8 @@ import {
   getSession,
   submitHole,
 } from "@/src/lib/api";
-import { getDeviceId } from "@/src/lib/storage";
+import { getDeviceId, getIdentifiedMember, getMembersWebhook, IdentifiedMember } from "@/src/lib/storage";
+import { fetchMembers, Member } from "@/src/lib/members";
 
 type Status = "pending" | "verified" | "mismatch";
 
