@@ -182,7 +182,7 @@ export default function MembersScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 88 }}>
           {filtered.length === 0 ? (
             <View style={styles.center}>
               <Text style={styles.hint}>No members match.</Text>
@@ -193,6 +193,19 @@ export default function MembersScreen() {
             ))
           )}
         </ScrollView>
+      )}
+
+      {webhook && !loading && !error && (
+        <View style={styles.footer}>
+          <Pressable
+            onPress={() => router.push("/signup")}
+            testID="members-signup-button"
+            style={({ pressed }) => [styles.signupBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Ionicons name="person-add" size={20} color={colors.onBrandPrimary} />
+            <Text style={styles.signupBtnText}>SIGN UP NEW MEMBER</Text>
+          </Pressable>
+        </View>
       )}
 
       <SetupModal
@@ -475,6 +488,32 @@ const styles = StyleSheet.create({
     borderColor: colors.brandTertiary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  footer: {
+    position: "absolute",
+    left: spacing.xl,
+    right: spacing.xl,
+    bottom: spacing.lg,
+  },
+  signupBtn: {
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandPrimary,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  signupBtnText: {
+    color: colors.onBrandPrimary,
+    fontFamily: typography.textBold,
+    fontSize: 14,
+    letterSpacing: 1,
   },
 
   // Modal
