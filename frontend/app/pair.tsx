@@ -165,7 +165,6 @@ export default function PairSetup() {
               placeholderTextColor={colors.muted}
               style={styles.memberInput}
             />
-            <Text style={styles.hint}>Auto-generated for now. Real IDs later.</Text>
           </View>
 
           {mode === "menu" && (

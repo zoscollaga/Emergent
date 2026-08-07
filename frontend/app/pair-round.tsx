@@ -40,12 +40,15 @@ export default function PairRoundScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [entries, setEntries] = useState<Record<number, LocalEntry>>({});
+  const [meMember, setMeMember] = useState<IdentifiedMember | Member | null>(null);
+  const [partnerMember, setPartnerMember] = useState<Member | null>(null);
   // Track submitted values so we can detect edits vs last submitted
   const lastSubmittedRef = useRef<Record<number, LocalEntry>>({});
 
   useEffect(() => {
     (async () => {
       setDeviceId(await getDeviceId());
+      setMeMember(await getIdentifiedMember());
     })();
   }, []);
 
@@ -113,6 +116,27 @@ export default function PairRoundScreen() {
 
   const partner = session?.players.find((p) => p.device_id !== deviceId);
   const me = session?.players.find((p) => p.device_id === deviceId);
+
+  // Fetch partner's member info from Members webhook once we know their id
+  useEffect(() => {
+    if (!partner?.member_id || partnerMember?.member_id === partner.member_id) return;
+    (async () => {
+      const url = await getMembersWebhook();
+      if (!url) return;
+      const res = await fetchMembers(url);
+      if (res.ok) {
+        const found = res.members.find((m) => m.member_id === partner.member_id);
+        if (found) setPartnerMember(found);
+      }
+    })();
+  }, [partner?.member_id, partnerMember?.member_id]);
+
+  const [playerLabel, markerLabel] = disambiguateNames(
+    meMember ? { first_name: meMember.first_name, last_name: meMember.last_name, member_id: (meMember as any).member_id || me?.member_id || "" } : null,
+    partnerMember ? { first_name: partnerMember.first_name, last_name: partnerMember.last_name, member_id: partnerMember.member_id } : null,
+    me?.member_id || "",
+    partner?.member_id || "",
+  );
 
   const updateField = (field: keyof LocalEntry, delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -244,7 +268,7 @@ export default function PairRoundScreen() {
       >
         <View style={styles.grid}>
           <FieldRow
-            title={`PLAYER (${me?.member_id ?? "----"})`}
+            title={`${playerLabel.toUpperCase()} (#${me?.member_id ?? "----"})`}
             scoreLabel="Score"
             scoreValue={entry.player_score}
             puttsValue={entry.player_putts}
@@ -257,7 +281,7 @@ export default function PairRoundScreen() {
             testID="player"
           />
           <FieldRow
-            title={`MARKER (${partner?.member_id ?? "----"})`}
+            title={`${markerLabel.toUpperCase()} (#${partner?.member_id ?? "----"})`}
             scoreLabel="Score"
             scoreValue={entry.marker_score}
             puttsValue={entry.marker_putts}
@@ -513,6 +537,35 @@ function MetaCell({ label, value, testID }: { label: string; value: string; test
       <Text style={styles.metaValue}>{value}</Text>
     </View>
   );
+}
+
+type NameSlot = { first_name: string; last_name: string; member_id: string } | null;
+
+/** Return distinct display names for two people. Uses first names when they differ;
+ *  otherwise extends with last-name characters until they diverge. Falls back to
+ *  "Player" / "Marker" when member info isn't loaded yet. */
+function disambiguateNames(a: NameSlot, b: NameSlot, meId: string, partnerId: string): [string, string] {
+  if (!a && !b) return ["Player", "Marker"];
+  const aFirst = (a?.first_name || "").trim();
+  const bFirst = (b?.first_name || "").trim();
+  const aLast = (a?.last_name || "").trim();
+  const bLast = (b?.last_name || "").trim();
+  const aFallback = meId ? `Player` : "Player";
+  const bFallback = partnerId ? `Marker` : "Marker";
+  if (!aFirst && !bFirst) return [aFallback, bFallback];
+  if (!aFirst) return [aFallback, bFirst || bFallback];
+  if (!bFirst) return [aFirst, bFallback];
+  if (aFirst.toLowerCase() !== bFirst.toLowerCase()) return [aFirst, bFirst];
+  // Same first name — extend with last name characters until distinct
+  for (let n = 1; n <= Math.max(aLast.length, bLast.length); n++) {
+    const aSlice = aLast.slice(0, n);
+    const bSlice = bLast.slice(0, n);
+    if (aSlice.toLowerCase() !== bSlice.toLowerCase()) {
+      return [`${aFirst} ${aSlice}`, `${bFirst} ${bSlice}`];
+    }
+  }
+  // Fully identical names — fall back to member IDs
+  return [`${aFirst} #${meId}`, `${bFirst} #${partnerId}`];
 }
 
 const styles = StyleSheet.create({
