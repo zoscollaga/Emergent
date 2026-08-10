@@ -1,0 +1,32 @@
+{
+  "summary": "Tested pair-round row title format + pair setup warning banner. 5 of 6 assertions PASS. Found 1 bug: Player row uses `??` (nullish coalescing) instead of `||` so empty-string member_id renders as '(#)' instead of '(#----)'. Marker row uses `||` and works correctly. Warning banner on /pair works as expected in both empty and populated states. Marker name resolution via mocked Members webhook renders 'ZOS (#2327) [M]' correctly, proving fetchMembers trim-lookup works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "pair-round.tsx FieldRow player title",
+        "issue": "Empty-string member_id fallback broken. Line 274 uses `me?.member_id ?? \"----\"` — nullish coalescing does NOT catch empty string, so the row title renders 'ALEX (#) [P]' instead of the expected 'ALEX (#----) [P]'. Marker line 287 uses `partner?.member_id || \"----\"` and works correctly. Header line 244 has the same `??` bug and will render '  ·  Marker: ' with a blank id.",
+        "testID": "player-row",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["Playwright script executed inline via browser automation; results in tool output"],
+  "action_items": [
+    "In /app/frontend/app/pair-round.tsx line 274 change `me?.member_id ?? \"----\"` to `me?.member_id || \"----\"` so empty-string member_ids fall back to '----'.",
+    "Apply same fix to line 244 header `me?.member_id ?? \"----\"` (and check `partner?.member_id ?? \"waiting…\"` — nullish coalescing there is likely fine because backend returns non-empty for joined partner, but consider using `||` for consistency)."
+  ],
+  "critical_code_review_comments": [
+    "pair-round.tsx line 274 vs 287 inconsistency: player uses `??`, marker uses `||`. This is exactly why the bug reproduced only on the player side. Use `||` uniformly for string fallbacks where empty strings are semantically 'missing'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "83% (5/6)"},
+  "seed_data_creation": "Created 2 sessions via POST /api/sessions on preview backend: (a) sid with Alex 2314 host + Zos 2327 join (member ids populated); (b) sid with both member_ids empty string. Used localStorage.gs.identifiedMember + gs.deviceId + gs.membersWebhook + addInitScript fetch mock for script.google.com returning Alex/Zos roster.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "One-line fix on pair-round.tsx line 274 (`??` -> `||`). Re-verify only Test 3 player fallback: seed a session with empty member_ids, set identifiedMember with member_id:'', navigate /pair-round?sid=..., assert player-row text contains '(#----) [P]'.",
+  "rca_of_issue": "JavaScript nullish coalescing operator `??` only returns the right-hand operand when the left is `null` or `undefined`. Since ApiSession.players[].member_id is the string '' (backend accepts empty string), the expression `me?.member_id ?? '----'` evaluates to '' and the title renders '(#) [P]'. Switching to logical OR `||` treats empty string as falsy and correctly falls back to '----' (matches marker line 287 behavior)."
+}

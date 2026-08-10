@@ -125,7 +125,10 @@ export default function PairRoundScreen() {
       if (!url) return;
       const res = await fetchMembers(url);
       if (res.ok) {
-        const found = res.members.find((m) => m.member_id === partner.member_id);
+        const target = String(partner.member_id).trim();
+        const found = res.members.find(
+          (m) => String(m.member_id).trim() === target,
+        );
         if (found) setPartnerMember(found);
       }
     })();
@@ -268,7 +271,7 @@ export default function PairRoundScreen() {
       >
         <View style={styles.grid}>
           <FieldRow
-            title={`${playerLabel.toUpperCase()} (#${me?.member_id ?? "----"})`}
+            title={`${playerLabel.toUpperCase()} (#${me?.member_id ?? "----"}) [P]`}
             scoreLabel="Score"
             scoreValue={entry.player_score}
             puttsValue={entry.player_putts}
@@ -281,7 +284,7 @@ export default function PairRoundScreen() {
             testID="player"
           />
           <FieldRow
-            title={`${markerLabel.toUpperCase()} (#${partner?.member_id ?? "----"})`}
+            title={`${markerLabel.toUpperCase()} (#${partner?.member_id || "----"}) [M]`}
             scoreLabel="Score"
             scoreValue={entry.marker_score}
             puttsValue={entry.marker_putts}

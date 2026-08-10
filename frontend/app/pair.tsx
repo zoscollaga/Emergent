@@ -160,6 +160,14 @@ export default function PairSetup() {
                 Member ID #{identity.member_id || "----"}
                 {identity.handicap != null ? ` · HCP ${identity.handicap}` : ""}
               </Text>
+              {!identity.member_id && (
+                <View style={styles.warnBox} testID="pair-missing-id-warning">
+                  <Ionicons name="warning" size={14} color="#92400E" />
+                  <Text style={styles.warnText}>
+                    Your Google Sheet row is missing a Member ID. Add one in the Members sheet, then come back — scorecards won{"\u2019"}t link correctly without it.
+                  </Text>
+                </View>
+              )}
               <Pressable
                 onPress={() => router.push("/identify")}
                 testID="pair-change-identity"
@@ -384,6 +392,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: spacing.md,
     lineHeight: 18,
+  },
+  warnBox: {
+    marginTop: spacing.md,
+    padding: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: "#FEF3C7",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  warnText: {
+    flex: 1,
+    color: "#92400E",
+    fontFamily: typography.text,
+    fontSize: 12,
+    lineHeight: 16,
   },
   memberInput: {
     fontFamily: typography.display,
