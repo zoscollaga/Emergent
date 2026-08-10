@@ -23,9 +23,9 @@ import {
 import {
   clearActiveSessionId,
   getDeviceId,
-  getMemberId,
+  getIdentifiedMember,
+  IdentifiedMember,
   setActiveSessionId,
-  setMemberId,
 } from "@/src/lib/storage";
 
 type Mode = "menu" | "create" | "join" | "waiting";
@@ -36,7 +36,7 @@ const KEILOR_NAME = "Keilor Golf Course";
 export default function PairSetup() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("menu");
-  const [memberId, setLocalMemberId] = useState("");
+  const [identity, setIdentity] = useState<IdentifiedMember | null>(null);
   const [deviceId, setDeviceId] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,15 +47,12 @@ export default function PairSetup() {
 
   useEffect(() => {
     (async () => {
-      setLocalMemberId(await getMemberId());
+      setIdentity(await getIdentifiedMember());
       setDeviceId(await getDeviceId());
     })();
   }, []);
 
-  const persistMember = async (v: string) => {
-    setLocalMemberId(v);
-    if (/^\d{4}$/.test(v)) await setMemberId(v);
-  };
+  const memberId = identity?.member_id || "";
 
   const startAsHost = async () => {
     setBusy(true);
@@ -153,21 +150,44 @@ export default function PairSetup() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg }}>
-          <View style={styles.memberCard}>
-            <Text style={styles.label}>Your Member ID</Text>
-            <TextInput
-              testID="member-id-input"
-              value={memberId}
-              onChangeText={(v) => persistMember(v.replace(/\D/g, "").slice(0, 4))}
-              keyboardType="number-pad"
-              maxLength={4}
-              placeholder="0000"
-              placeholderTextColor={colors.muted}
-              style={styles.memberInput}
-            />
-          </View>
+          {identity ? (
+            <View style={styles.memberCard} testID="pair-identity-card">
+              <Text style={styles.label}>You are playing as</Text>
+              <Text style={styles.identityName} numberOfLines={1}>
+                {identity.first_name} {identity.last_name}
+              </Text>
+              <Text style={styles.identityMeta}>
+                Member ID #{identity.member_id || "----"}
+                {identity.handicap != null ? ` · HCP ${identity.handicap}` : ""}
+              </Text>
+              <Pressable
+                onPress={() => router.push("/identify")}
+                testID="pair-change-identity"
+                hitSlop={8}
+                style={({ pressed }) => [styles.changeLink, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.changeLinkText}>Not you? Change</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.identityMissingCard} testID="pair-identity-missing">
+              <Ionicons name="person-circle-outline" size={28} color={colors.brand} />
+              <Text style={styles.identityMissingTitle}>Choose your name first</Text>
+              <Text style={styles.identityMissingBody}>
+                So your marker sees the right player and scorecards go to the right Member ID, pick your name from the members list.
+              </Text>
+              <Pressable
+                onPress={() => router.push("/identify")}
+                testID="pair-goto-identify"
+                style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="person" size={18} color={colors.onBrandPrimary} />
+                <Text style={styles.primaryBtnText}>Choose your name</Text>
+              </Pressable>
+            </View>
+          )}
 
-          {mode === "menu" && (
+          {identity && mode === "menu" && (
             <View style={{ gap: spacing.md }}>
               <Pressable
                 onPress={startAsHost}
@@ -199,7 +219,7 @@ export default function PairSetup() {
             </View>
           )}
 
-          {mode === "join" && (
+          {identity && mode === "join" && (
             <View style={{ gap: spacing.md }}>
               <View>
                 <Text style={styles.label}>Join code</Text>
@@ -320,6 +340,50 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     borderRadius: radius.lg,
     padding: spacing.lg,
+  },
+  identityName: {
+    fontFamily: typography.display,
+    fontSize: 26,
+    color: colors.onSurface,
+    marginTop: 4,
+  },
+  identityMeta: {
+    fontFamily: typography.text,
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  changeLink: {
+    alignSelf: "flex-start",
+    marginTop: spacing.md,
+  },
+  changeLinkText: {
+    fontFamily: typography.textBold,
+    fontSize: 12,
+    color: colors.brand,
+    letterSpacing: 0.5,
+  },
+  identityMissingCard: {
+    backgroundColor: colors.brandTertiary,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  identityMissingTitle: {
+    fontFamily: typography.display,
+    fontSize: 20,
+    color: colors.brand,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  identityMissingBody: {
+    fontFamily: typography.text,
+    fontSize: 13,
+    color: colors.brand,
+    textAlign: "center",
+    marginBottom: spacing.md,
+    lineHeight: 18,
   },
   memberInput: {
     fontFamily: typography.display,
