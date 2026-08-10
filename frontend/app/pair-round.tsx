@@ -241,7 +241,7 @@ export default function PairRoundScreen() {
         <View style={styles.headerCentre}>
           <Text style={styles.courseLabel} numberOfLines={1}>{session.course_name}</Text>
           <Text style={styles.pairLabel}>
-            {me?.member_id ?? "----"} · Marker: {partner?.member_id ?? "waiting…"}
+            {me?.member_id || "----"} · Marker: {partner?.member_id || "waiting…"}
           </Text>
         </View>
         <View style={styles.iconBtn} />
@@ -271,7 +271,7 @@ export default function PairRoundScreen() {
       >
         <View style={styles.grid}>
           <FieldRow
-            title={`${playerLabel.toUpperCase()} (#${me?.member_id ?? "----"}) [P]`}
+            title={`${playerLabel.toUpperCase()} (#${me?.member_id || "----"}) [P]`}
             scoreLabel="Score"
             scoreValue={entry.player_score}
             puttsValue={entry.player_putts}
