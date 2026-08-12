@@ -18,6 +18,8 @@ import { useRouter } from "expo-router";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   clearWebhookUrl,
+  getDefaultWebhookUrl,
+  getWebhookOverride,
   getWebhookUrl,
   setWebhookUrl,
 } from "@/src/lib/storage";
@@ -36,6 +38,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [override, setOverride] = useState<string | null>(null);
+  const [defaultUrl, setDefaultUrl] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
@@ -43,7 +47,11 @@ export default function SettingsScreen() {
   useEffect(() => {
     (async () => {
       const current = await getWebhookUrl();
+      const ovr = await getWebhookOverride();
+      const def = getDefaultWebhookUrl();
       setSavedUrl(current);
+      setOverride(ovr);
+      setDefaultUrl(def);
       setUrl(current || "");
     })();
   }, []);
@@ -70,6 +78,7 @@ export default function SettingsScreen() {
     setSaving(true);
     await setWebhookUrl(candidate);
     setSavedUrl(candidate);
+    setOverride(candidate);
     setSaving(false);
     setTest({ kind: "idle" });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -100,13 +109,17 @@ export default function SettingsScreen() {
 
   const onClear = async () => {
     await clearWebhookUrl();
-    setSavedUrl(null);
-    setUrl("");
+    setOverride(null);
+    // If a shipped default exists, reflect it as the "current" URL.
+    const fallback = getDefaultWebhookUrl() || null;
+    setSavedUrl(fallback);
+    setUrl(fallback || "");
     setTest({ kind: "idle" });
     setValidationError(null);
   };
 
   const dirty = (url.trim() || null) !== (savedUrl || null);
+  const usingDefault = !override && !!defaultUrl && savedUrl === defaultUrl;
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="settings-screen">
@@ -137,9 +150,17 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Web App URL</Text>
             <Text style={styles.cardBody}>
-              One URL powers both the Members roster and Scorecard exports. Paste
-              the {"\u2026/exec"} URL from your Apps Script deployment.
+              One URL powers Members, Scorecard exports, and the Live Leaderboard.
+              {usingDefault ? " Your device is using the club's default URL." : ""}
             </Text>
+            {usingDefault && (
+              <View style={[styles.banner, styles.bannerNeutral]} testID="webhook-default-banner">
+                <Ionicons name="shield-checkmark" size={16} color={colors.brand} />
+                <Text style={[styles.bannerText, { color: colors.brand }]}>
+                  Auto-connected via club default. Override below only if you need to test a different sheet.
+                </Text>
+              </View>
+            )}
 
             <TextInput
               testID="webhook-url-input"
@@ -243,14 +264,16 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {savedUrl && (
+          {override && (
             <Pressable
               onPress={onClear}
               testID="webhook-clear-button"
               style={({ pressed }) => [styles.dangerLink, pressed && { opacity: 0.6 }]}
             >
               <Ionicons name="trash-outline" size={14} color={colors.error} />
-              <Text style={styles.dangerLinkText}>Remove saved URL</Text>
+              <Text style={styles.dangerLinkText}>
+                {defaultUrl ? "Remove override & use club default" : "Remove saved URL"}
+              </Text>
             </Pressable>
           )}
         </ScrollView>

@@ -166,15 +166,18 @@ export async function clearSheetsWebhook() {
 
 /**
  * Unified webhook URL used by both the Members flow and the Scorecards export
- * (since the merged Apps Script handles both actions). Writes to both storage
- * keys so the existing per-feature getters keep working. Reads prefer the
- * scorecards key and fall back to the members key.
+ * (since the merged Apps Script handles both actions). Reads prefer the
+ * per-device override (scorecards or members key), then fall back to the
+ * shipped-with-app default `EXPO_PUBLIC_WEBHOOK_URL` so new installs work
+ * without any setup.
  */
 export async function getWebhookUrl(): Promise<string | null> {
   const sheets = await AsyncStorage.getItem(K_SHEETS_WEBHOOK);
   if (sheets && sheets.trim()) return sheets.trim();
   const members = await AsyncStorage.getItem(K_MEMBERS_WEBHOOK);
-  return members && members.trim() ? members.trim() : null;
+  if (members && members.trim()) return members.trim();
+  const shipped = (process.env.EXPO_PUBLIC_WEBHOOK_URL || "").trim();
+  return shipped || null;
 }
 export async function setWebhookUrl(url: string) {
   const v = url.trim();
@@ -184,6 +187,17 @@ export async function setWebhookUrl(url: string) {
 export async function clearWebhookUrl() {
   await AsyncStorage.removeItem(K_SHEETS_WEBHOOK);
   await AsyncStorage.removeItem(K_MEMBERS_WEBHOOK);
+}
+/** Non-null "default" URL shipped with the app (or empty string). */
+export function getDefaultWebhookUrl(): string {
+  return (process.env.EXPO_PUBLIC_WEBHOOK_URL || "").trim();
+}
+/** Returns just the device override (nothing when only the shipped default is used). */
+export async function getWebhookOverride(): Promise<string | null> {
+  const sheets = await AsyncStorage.getItem(K_SHEETS_WEBHOOK);
+  if (sheets && sheets.trim()) return sheets.trim();
+  const members = await AsyncStorage.getItem(K_MEMBERS_WEBHOOK);
+  return members && members.trim() ? members.trim() : null;
 }
 
 export async function markRoundExported(roundId: string) {

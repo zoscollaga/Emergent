@@ -84,7 +84,7 @@ export default function HomeScreen() {
         />
         <SafeAreaView style={styles.heroContent} edges={["top"]}>
           <View style={styles.brandRow}>
-            <Text style={styles.brandLabel} testID="brand-label">GOLF SCORECARD</Text>
+            <View style={{ flex: 1 }} />
             <View style={styles.brandActions}>
               <Pressable
                 onPress={() => router.push("/identify")}
@@ -137,12 +137,12 @@ export default function HomeScreen() {
           <Text style={styles.secondaryBigBtnText}>PLAY WITH A MARKER</Text>
         </Pressable>
         <Pressable
-          testID="members-button"
-          onPress={() => router.push("/members")}
-          style={({ pressed }) => [styles.tertiaryBtn, pressed && { opacity: 0.7 }]}
+          testID="leaderboard-button"
+          onPress={() => router.push("/leaderboard")}
+          style={({ pressed }) => [styles.leaderboardBtn, pressed && { opacity: 0.85 }]}
         >
-          <Ionicons name="list" size={18} color={colors.onSurfaceSecondary} />
-          <Text style={styles.tertiaryBtnText}>MEMBERS</Text>
+          <Ionicons name="trophy" size={20} color={colors.onSurface} />
+          <Text style={styles.leaderboardBtnText}>LIVE LEADERBOARD</Text>
         </Pressable>
       </SafeAreaView>
     </View>
@@ -167,13 +167,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  brandLabel: {
-    color: colors.onBrandSecondary,
-    letterSpacing: 3,
-    fontFamily: typography.textBold,
-    fontSize: 12,
-    opacity: 0.9,
   },
   memberChip: {
     flexDirection: "row",
@@ -264,5 +257,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.textBold,
     fontSize: 13,
     letterSpacing: 1.5,
+  },
+  leaderboardBtn: {
+    marginTop: spacing.md,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  leaderboardBtnText: {
+    color: colors.onSurface,
+    fontFamily: typography.textBold,
+    fontSize: 14,
+    letterSpacing: 1.2,
   },
 });

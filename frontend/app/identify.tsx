@@ -76,7 +76,8 @@ export default function IdentifyScreen() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return members;
+    // Privacy: don't list the roster. Require at least 2 chars to start matching.
+    if (q.length < 2) return [];
     return members.filter((m) => {
       const full = `${m.first_name} ${m.last_name}`.toLowerCase();
       return (
@@ -121,14 +122,14 @@ export default function IdentifyScreen() {
         <View style={styles.center}>
           <Ionicons name="link-outline" size={28} color={colors.brand} />
           <Text style={styles.hint}>
-            Members sheet isn{"\u2019"}t connected yet. Go to Members → ⚙️ to add your Google Sheet URL.
+            Google Sheet isn{"\u2019"}t connected yet. Open Settings to paste the Web App URL.
           </Text>
           <Pressable
-            onPress={() => router.replace("/members")}
-            testID="identify-open-members"
+            onPress={() => router.replace("/settings")}
+            testID="identify-open-settings"
             style={styles.primaryBtn}
           >
-            <Text style={styles.primaryBtnText}>Open Members</Text>
+            <Text style={styles.primaryBtnText}>Open Settings</Text>
           </Pressable>
         </View>
       ) : loading ? (
@@ -167,7 +168,23 @@ export default function IdentifyScreen() {
             )}
           </View>
 
-          {filtered.length === 0 ? (
+          {query.trim().length < 2 ? (
+            <View style={styles.center}>
+              <Ionicons name="search" size={28} color={colors.borderStrong} />
+              <Text style={styles.hint}>
+                Type your name to find your card.{"\n"}
+                For privacy the full roster isn{"\u2019"}t listed.
+              </Text>
+              <Pressable
+                onPress={() => router.push("/signup")}
+                testID="identify-signup-hint"
+                style={({ pressed }) => [styles.signupFooter, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="person-add-outline" size={18} color={colors.brand} />
+                <Text style={styles.signupFooterText}>Not on the list? Sign up</Text>
+              </Pressable>
+            </View>
+          ) : filtered.length === 0 ? (
             <View style={styles.center}>
               <Text style={styles.hint}>No members match.</Text>
               <Pressable

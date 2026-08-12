@@ -33,9 +33,18 @@ A polished, high-contrast Expo (React Native) mobile app for golfers to quickly 
 
 ## Settings (v1.4)
 - One **Settings screen** (accessed via ⚙️ gear on Home) is the single place to enter the **Google Apps Script Web App URL**.
-- One URL now powers both the Members roster (`doGet` returning `{members}`) and Scorecard export (`doPost` with `{csv, filename, meta}`). The Apps Script itself is a single merged file that routes by payload type.
+- One URL now powers Members, Scorecard export, **and the Live Leaderboard**. The Apps Script is a single merged file that routes by payload type.
+- Central provisioning via `EXPO_PUBLIC_WEBHOOK_URL` — new installs auto-connect to the club's default URL. Any device can override in Settings for testing.
 - Settings screen also has a **Test** button that pings the URL and confirms it returns member data.
-- Settings icons removed from Summary and Pair Summary screens. When a user tries to export without a saved URL, an inline banner links directly to Settings.
+
+## Live Leaderboard (v1.5)
+- `/leaderboard` route reads the date-tab from the Google Sheet via `?action=leaderboard&date=YYYY-MM-DD`.
+- Auto-refreshes every 15 s, plus pull-to-refresh.
+- Prev / Next day arrows and a Today button. Cannot navigate past today.
+- Columns: Rank · Player (name + #ID + HCP) · Gross (with vs-par when full round) · Net (Gross − Handicap) · Putts · Thru (holes played or "F" for finished).
+- Ranking: prefers players with more holes played, then lower gross score.
+- Home now surfaces the leaderboard as a full "LIVE LEADERBOARD" button; the Members link was removed (accessible via player-selection autocomplete).
+- Identify screen switched to **privacy-first autocomplete** — the full roster is never listed; users must type ≥2 characters to see matches.
 
 ## Backend
 - `GET /api/courses/keilor` and `/api/courses/nearby` — Keilor only.
