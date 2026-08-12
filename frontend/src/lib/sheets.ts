@@ -3,7 +3,7 @@ import { FinishedRound, IdentifiedMember, StoredCourse } from "./storage";
 /**
  * Canonical Scorecards column order (spec):
  *   Scorecard ID, Player Name, Member ID, Date, Course, Gross Score,
- *   Handicap, Total Putts, H1 Score, H1 Putts, ... H18 Score, H18 Putts
+ *   Handicap, Net Score, Total Putts, H1 Score, H1 Putts, ... H18 Score, H18 Putts
  */
 export function buildScorecardsHeader(): string[] {
   const header: string[] = [
@@ -14,6 +14,7 @@ export function buildScorecardsHeader(): string[] {
     "Course",
     "Gross Score",
     "Handicap",
+    "Net Score",
     "Total Putts",
   ];
   for (let i = 1; i <= 18; i++) header.push(`H${i} Score`, `H${i} Putts`);
@@ -62,6 +63,8 @@ export function buildPlayerCsv(payload: {
   holes: { number: number; score: number | null; putts: number | null }[];
 }): string {
   const header = buildScorecardsHeader();
+  const netScore =
+    payload.handicap == null ? "" : payload.grossScore - payload.handicap;
   const row: (string | number)[] = [
     payload.scorecardId ?? "",
     payload.playerName,
@@ -70,6 +73,7 @@ export function buildPlayerCsv(payload: {
     payload.courseName,
     payload.grossScore,
     payload.handicap ?? "",
+    netScore,
     payload.totalPutts,
   ];
   for (let i = 1; i <= 18; i++) {

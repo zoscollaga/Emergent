@@ -64,6 +64,12 @@ function normaliseRow(r: any): LeaderboardRow {
   }
   const gross = numOrZero(r?.gross_score ?? r?.["Gross Score"]);
   const handicap = optionalNum(r?.handicap ?? r?.Handicap);
+  const netFromSheet = optionalNum(r?.net_score ?? r?.["Net Score"]);
+  const net = netFromSheet != null
+    ? netFromSheet
+    : handicap != null
+    ? gross - handicap
+    : null;
   const played = holes.filter((h) => h != null).length;
   return {
     scorecard_id: String(r?.scorecard_id ?? r?.["Scorecard ID"] ?? "").trim(),
@@ -72,7 +78,7 @@ function normaliseRow(r: any): LeaderboardRow {
     course: String(r?.course ?? r?.Course ?? "").trim(),
     gross_score: gross,
     handicap,
-    net_score: handicap == null ? null : gross - handicap,
+    net_score: net,
     total_putts: numOrZero(r?.total_putts ?? r?.["Total Putts"]),
     holes_played: played,
     hole_scores: holes,

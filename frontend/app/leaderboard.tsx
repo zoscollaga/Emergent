@@ -214,10 +214,10 @@ export default function LeaderboardScreen() {
           <View style={styles.tableHeader}>
             <Text style={[styles.thText, styles.colRank]}>#</Text>
             <Text style={[styles.thText, styles.colPlayer]}>Player</Text>
-            <Text style={[styles.thText, styles.colGross]}>Gross</Text>
-            <Text style={[styles.thText, styles.colNet]}>Net</Text>
-            <Text style={[styles.thText, styles.colPutts]}>Putts</Text>
-            <Text style={[styles.thText, styles.colThru]}>Thru</Text>
+            <Text style={[styles.thText, styles.colGross, { textAlign: "center" }]}>Gross</Text>
+            <Text style={[styles.thText, styles.colNet, { textAlign: "center" }]}>Net</Text>
+            <Text style={[styles.thText, styles.colPutts, { textAlign: "center" }]}>Putts</Text>
+            <Text style={[styles.thText, styles.colThru, { textAlign: "center" }]}>Thru</Text>
           </View>
 
           {rows.map((r, idx) => (
@@ -263,20 +263,22 @@ function Row({
       : rank === 3
       ? "#FBCEB1"
       : colors.surfaceSecondary;
-  const rankFg =
-    rank <= 3 ? "#1F2937" : colors.onSurfaceSecondary;
+  const rankFg = rank <= 3 ? "#1F2937" : colors.onSurfaceSecondary;
+  const displayName = shortName(row.player_name);
   return (
     <View style={styles.tr} testID={`leaderboard-row-${row.member_id || rank}`}>
-      <View style={[styles.rankPill, { backgroundColor: rankBg }]}>
-        <Text style={[styles.rankPillText, { color: rankFg }]}>{rank}</Text>
+      <View style={[styles.colRank, { alignItems: "flex-start" }]}>
+        <View style={[styles.rankPill, { backgroundColor: rankBg }]}>
+          <Text style={[styles.rankPillText, { color: rankFg }]}>{rank}</Text>
+        </View>
       </View>
-      <View style={styles.playerCell}>
+      <View style={styles.colPlayer}>
         <Text style={styles.playerName} numberOfLines={1}>
-          {row.player_name || "—"}
+          {displayName}
         </Text>
         <Text style={styles.playerMeta} numberOfLines={1}>
-          {row.member_id ? `#${row.member_id}` : "—"}
-          {row.handicap != null ? ` · HCP ${row.handicap}` : ""}
+          {row.member_id ? `#${row.member_id}` : ""}
+          {row.handicap != null ? `${row.member_id ? " · " : ""}HCP ${row.handicap}` : ""}
         </Text>
       </View>
       <View style={styles.colGross}>
@@ -294,12 +296,23 @@ function Row({
         <Text style={styles.tdText}>{row.total_putts || "—"}</Text>
       </View>
       <View style={styles.colThru}>
-        <Text style={[styles.tdText, complete && { color: colors.success }]}>
+        <Text style={[styles.tdText, complete && { color: colors.success, fontFamily: typography.textBold }]}>
           {complete ? "F" : `${row.holes_played}`}
         </Text>
       </View>
     </View>
   );
+}
+
+/** "John Smith" → "John S." · "John" → "John" · "" → "—" */
+function shortName(full: string): string {
+  const s = (full || "").trim();
+  if (!s) return "—";
+  const parts = s.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  return `${first} ${last[0]}.`;
 }
 
 function sortRows(rows: LeaderboardRow[]): LeaderboardRow[] {
@@ -411,12 +424,13 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: colors.divider,
     backgroundColor: colors.surfaceSecondary,
+    gap: 4,
   },
   thText: {
     fontFamily: typography.textBold,
@@ -428,43 +442,43 @@ const styles = StyleSheet.create({
   tr: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
-    gap: 6,
+    gap: 4,
   },
-  colRank: { width: 34, textAlign: "left" },
-  colPlayer: { flex: 1 },
-  colGross: { width: 62, alignItems: "center" },
-  colNet: { width: 44, alignItems: "center" },
-  colPutts: { width: 44, alignItems: "center" },
-  colThru: { width: 40, alignItems: "center" },
+  colRank: { width: 30, alignItems: "flex-start" },
+  colPlayer: { flex: 1, minWidth: 0 },
+  colGross: { width: 54, alignItems: "center" },
+  colNet: { width: 40, alignItems: "center" },
+  colPutts: { width: 42, alignItems: "center" },
+  colThru: { width: 34, alignItems: "center" },
   rankPill: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
   },
-  rankPillText: { fontFamily: typography.textBold, fontSize: 13 },
+  rankPillText: { fontFamily: typography.textBold, fontSize: 12 },
   playerCell: { flex: 1 },
   playerName: {
     fontFamily: typography.textBold,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.onSurface,
   },
   playerMeta: {
     fontFamily: typography.text,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.muted,
     marginTop: 1,
   },
   grossValue: {
     fontFamily: typography.display,
-    fontSize: 20,
+    fontSize: 18,
     color: colors.onSurface,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   grossDiff: {
     fontFamily: typography.textBold,
@@ -473,12 +487,12 @@ const styles = StyleSheet.create({
   },
   netValue: {
     fontFamily: typography.textBold,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.brand,
   },
   tdText: {
     fontFamily: typography.text,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.onSurface,
   },
   hint: { color: colors.muted, fontFamily: typography.text, textAlign: "center", lineHeight: 20 },
