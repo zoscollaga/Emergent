@@ -10,46 +10,57 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { ApiCourse, fetchCourseDetail, fetchNearbyCourses } from "@/src/lib/api";
 import {
-  StoredCourse,
-  getCourseOverride,
+  getActiveRound,
+  getSelectedCourse,
+  getWebhookUrl,
   setSelectedCourse,
+  StoredCourse,
 } from "@/src/lib/storage";
+import { CourseRow, fetchCourses } from "@/src/lib/courses";
 
 export default function CoursesScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [courses, setCourses] = useState<ApiCourse[]>([]);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
   const [query, setQuery] = useState("");
   const [pickingId, setPickingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let lat = -37.9739;
-      let lng = 145.0349;
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-      }
-      const list = await fetchNearbyCourses(lat, lng);
-      setCourses(list);
-    } catch (e: any) {
-      setError("Couldn't load nearby courses. Check your connection.");
-    } finally {
+    // Block picking while a round is in progress
+    const active = await getActiveRound();
+    if (active) {
+      setLocked(true);
       setLoading(false);
+      return;
     }
+    setLocked(false);
+    const current = await getSelectedCourse();
+    if (current) setSelectedId(current.id);
+    const url = await getWebhookUrl();
+    if (!url) {
+      setError("Google Sheet isn't connected yet. Open Settings to add the Web App URL.");
+      setLoading(false);
+      return;
+    }
+    const res = await fetchCourses(url);
+    if (res.ok) {
+      setCourses(res.courses);
+    } else {
+      let message = res.message || `Couldn't load courses (HTTP ${res.status}).`;
+      if (res.status === 404)
+        message = "Web App returned 404. Redeploy your Apps Script and update the URL in Settings.";
+      setError(message);
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -62,23 +73,20 @@ export default function CoursesScreen() {
     return courses.filter((c) => c.name.toLowerCase().includes(q));
   }, [courses, query]);
 
-  const onPick = async (c: ApiCourse) => {
+  const onPick = async (c: CourseRow) => {
+    if (locked) return;
     setPickingId(c.id);
     try {
-      const detail = await fetchCourseDetail(c.id, c.name, c.latitude, c.longitude);
-      const override = await getCourseOverride(detail.id);
       const stored: StoredCourse = {
-        id: detail.id,
-        name: detail.name,
-        latitude: detail.latitude,
-        longitude: detail.longitude,
-        distance_km: c.distance_km,
-        holes: override || detail.holes,
+        id: c.id,
+        name: c.name,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        holes: c.holes,
       };
       await setSelectedCourse(stored);
+      setSelectedId(c.id);
       router.back();
-    } catch (e) {
-      setError("Failed to load course.");
     } finally {
       setPickingId(null);
     }
@@ -95,70 +103,111 @@ export default function CoursesScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.title}>Nearby Courses</Text>
+        <Text style={styles.title}>Select Course</Text>
         <View style={{ width: 32 }} />
       </View>
 
-      <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.muted} />
-        <TextInput
-          testID="course-search-input"
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search courses"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
-
-      {loading ? (
-        <View style={styles.center} testID="courses-loading">
-          <ActivityIndicator color={colors.brand} />
-          <Text style={styles.hint}>Finding courses…</Text>
-        </View>
-      ) : error ? (
+      {locked ? (
         <View style={styles.center}>
-          <Text style={styles.error} testID="courses-error">{error}</Text>
-          <Pressable onPress={load} style={styles.retryBtn} testID="courses-retry-button">
-            <Text style={styles.retryText}>Retry</Text>
+          <Ionicons name="lock-closed" size={28} color={colors.borderStrong} />
+          <Text style={styles.hint}>
+            A round is in progress. Finish or cancel it before changing course.
+          </Text>
+          <Pressable
+            onPress={() => router.replace("/round")}
+            testID="courses-resume-round"
+            style={styles.primaryBtn}
+          >
+            <Text style={styles.primaryBtnText}>Return to round</Text>
           </Pressable>
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(i) => i.id}
-          ItemSeparatorComponent={() => <View style={styles.divider} />}
-          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl }}
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.hint}>No courses match.</Text>
+        <>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search" size={18} color={colors.muted} />
+            <TextInput
+              testID="course-search-input"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search courses"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+
+          {loading ? (
+            <View style={styles.center} testID="courses-loading">
+              <ActivityIndicator color={colors.brand} />
+              <Text style={styles.hint}>Loading courses…</Text>
             </View>
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`course-row-${item.id}`}
-              onPress={() => onPick(item)}
-              style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
-            >
-              <View style={styles.rowIcon}>
-                <Ionicons name="flag" size={20} color={colors.brand} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowName} numberOfLines={2}>{item.name}</Text>
-                {item.distance_km != null && (
-                  <Text style={styles.rowMeta}>{item.distance_km.toFixed(1)} km away</Text>
-                )}
-              </View>
-              {pickingId === item.id ? (
-                <ActivityIndicator color={colors.brand} />
-              ) : (
-                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-              )}
-            </Pressable>
+          ) : error ? (
+            <View style={styles.center}>
+              <Ionicons name="alert-circle" size={26} color={colors.error} />
+              <Text style={styles.errorText} testID="courses-error">{error}</Text>
+              <Pressable onPress={load} style={styles.primaryBtn} testID="courses-retry-button">
+                <Text style={styles.primaryBtnText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={(i) => i.id}
+              ItemSeparatorComponent={() => <View style={styles.divider} />}
+              contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl }}
+              ListEmptyComponent={
+                <View style={styles.center}>
+                  <Text style={styles.hint}>
+                    {query.trim() ? "No courses match." : "No courses in the sheet yet."}
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => {
+                const par = item.holes.reduce((s, h) => s + h.par, 0);
+                const isCurrent = item.id === selectedId;
+                return (
+                  <Pressable
+                    testID={`course-row-${item.id}`}
+                    onPress={() => onPick(item)}
+                    style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
+                  >
+                    <View style={[styles.rowIcon, isCurrent && styles.rowIconActive]}>
+                      <Ionicons
+                        name={isCurrent ? "checkmark" : "flag"}
+                        size={20}
+                        color={isCurrent ? colors.onBrandPrimary : colors.brand}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowName} numberOfLines={2}>{item.name}</Text>
+                      <Text style={styles.rowMeta}>
+                        18 holes · Par {par}
+                        {isCurrent ? " · currently selected" : ""}
+                      </Text>
+                    </View>
+                    {pickingId === item.id ? (
+                      <ActivityIndicator color={colors.brand} />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                    )}
+                  </Pressable>
+                );
+              }}
+            />
           )}
-        />
+
+          <View style={styles.footer}>
+            <Pressable
+              onPress={() => router.push("/add-course")}
+              testID="courses-add-button"
+              style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.onBrandPrimary} />
+              <Text style={styles.addBtnText}>ADD NEW COURSE</Text>
+            </Pressable>
+          </View>
+        </>
       )}
     </SafeAreaView>
   );
@@ -173,17 +222,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
-  backBtn: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontFamily: typography.display,
-    fontSize: 22,
-    color: colors.onSurface,
-  },
+  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  title: { fontFamily: typography.display, fontSize: 22, color: colors.onSurface },
   searchWrap: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.lg,
@@ -216,27 +256,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowName: {
-    fontFamily: typography.textBold,
-    fontSize: 16,
-    color: colors.onSurface,
-  },
-  rowMeta: {
-    marginTop: 2,
-    fontFamily: typography.text,
-    color: colors.muted,
-    fontSize: 13,
-  },
+  rowIconActive: { backgroundColor: colors.brandPrimary },
+  rowName: { fontFamily: typography.textBold, fontSize: 16, color: colors.onSurface },
+  rowMeta: { marginTop: 2, fontFamily: typography.text, color: colors.muted, fontSize: 13 },
   divider: { height: 1, backgroundColor: colors.divider },
   center: { alignItems: "center", justifyContent: "center", padding: spacing.xxl, gap: spacing.md },
-  hint: { color: colors.muted, fontFamily: typography.text },
-  error: { color: colors.error, fontFamily: typography.text, textAlign: "center" },
-  retryBtn: {
+  hint: { color: colors.muted, fontFamily: typography.text, textAlign: "center", lineHeight: 20 },
+  errorText: { color: colors.error, fontFamily: typography.text, textAlign: "center" },
+  primaryBtn: {
     marginTop: spacing.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: radius.pill,
     backgroundColor: colors.brandPrimary,
   },
-  retryText: { color: colors.onBrandPrimary, fontFamily: typography.textBold },
+  primaryBtnText: { color: colors.onBrandPrimary, fontFamily: typography.textBold },
+  footer: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  addBtn: {
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandPrimary,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  addBtnText: {
+    color: colors.onBrandPrimary,
+    fontFamily: typography.textBold,
+    fontSize: 14,
+    letterSpacing: 1.5,
+  },
 });

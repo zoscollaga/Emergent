@@ -10,6 +10,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   IdentifiedMember,
   StoredCourse,
+  getActiveRound,
   getIdentifiedMember,
   getSelectedCourse,
   setSelectedCourse,
@@ -48,15 +49,20 @@ const KEILOR: StoredCourse = {
 export default function HomeScreen() {
   const router = useRouter();
   const [identity, setIdentity] = useState<IdentifiedMember | null>(null);
+  const [course, setCourse] = useState<StoredCourse>(KEILOR);
+  const [roundActive, setRoundActive] = useState(false);
 
   const refresh = useCallback(async () => {
-    // Persist Keilor as the selected course. If a stale different course was saved,
-    // overwrite it — Keilor is the only course for now.
     const cached = await getSelectedCourse();
-    if (!cached || cached.id !== KEILOR.id) {
+    if (!cached) {
+      // First launch: seed Keilor so scoring works before the user opens the picker
       await setSelectedCourse(KEILOR);
+      setCourse(KEILOR);
+    } else {
+      setCourse(cached);
     }
     setIdentity(await getIdentifiedMember());
+    setRoundActive(!!(await getActiveRound()));
   }, []);
 
   useEffect(() => {
@@ -112,10 +118,31 @@ export default function HomeScreen() {
           </View>
           <View style={{ flex: 1 }} />
           <Text style={styles.eyebrow}>Today{"\u2019"}s course</Text>
-          <Text style={styles.courseName} numberOfLines={2} testID="current-course-name">
-            {KEILOR.name}
-          </Text>
-          <Text style={styles.courseMeta}>18 holes · Par {KEILOR.holes.reduce((s, h) => s + h.par, 0)}</Text>
+          <Pressable
+            onPress={() => !roundActive && router.push("/courses")}
+            disabled={roundActive}
+            testID="course-picker-chip"
+            style={({ pressed }) => [
+              styles.courseChip,
+              pressed && !roundActive && { opacity: 0.85 },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.courseName} numberOfLines={2} testID="current-course-name">
+                {course.name}
+              </Text>
+              <Text style={styles.courseMeta}>
+                18 holes · Par {course.holes.reduce((s, h) => s + h.par, 0)}
+                {roundActive ? " · locked while a round is in progress" : "  ·  Tap to change"}
+              </Text>
+            </View>
+            {!roundActive && (
+              <Ionicons name="chevron-forward" size={20} color="#D1FAE5" />
+            )}
+            {roundActive && (
+              <Ionicons name="lock-closed" size={16} color="rgba(255,255,255,0.7)" />
+            )}
+          </Pressable>
         </SafeAreaView>
       </View>
 
@@ -192,6 +219,12 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: "uppercase",
     marginBottom: spacing.sm,
+  },
+  courseChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingRight: 4,
   },
   courseName: {
     color: colors.onBrandSecondary,
