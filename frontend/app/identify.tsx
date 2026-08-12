@@ -16,7 +16,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { fetchMembers, Member } from "@/src/lib/members";
 import {
   getIdentifiedMember,
-  getMembersWebhook,
+  getWebhookUrl,
   setIdentifiedMember,
 } from "@/src/lib/storage";
 
@@ -31,7 +31,7 @@ export default function IdentifyScreen() {
   const [picking, setPicking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const url = await getMembersWebhook();
+    const url = await getWebhookUrl();
     setWebhook(url);
     const identified = await getIdentifiedMember();
     setCurrentId(identified?.member_id || null);

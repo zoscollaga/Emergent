@@ -18,7 +18,7 @@ import {
   getSession,
   submitHole,
 } from "@/src/lib/api";
-import { getDeviceId, getIdentifiedMember, getMembersWebhook, IdentifiedMember } from "@/src/lib/storage";
+import { getDeviceId, getIdentifiedMember, getWebhookUrl, IdentifiedMember } from "@/src/lib/storage";
 import { fetchMembers, Member } from "@/src/lib/members";
 
 type Status = "pending" | "verified" | "mismatch";
@@ -143,11 +143,11 @@ export default function PairRoundScreen() {
   const partner = session?.players.find((p) => p.device_id !== deviceId);
   const me = session?.players.find((p) => p.device_id === deviceId);
 
-  // Fetch partner's member info from Members webhook once we know their id
+  // Fetch partner's member info from the Web App once we know their id
   useEffect(() => {
     if (!partner?.member_id || partnerMember?.member_id === partner.member_id) return;
     (async () => {
-      const url = await getMembersWebhook();
+      const url = await getWebhookUrl();
       if (!url) return;
       const res = await fetchMembers(url);
       if (res.ok) {

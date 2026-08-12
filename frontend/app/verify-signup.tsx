@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { signUpVerify } from "@/src/lib/members";
-import { getMembersWebhook, setIdentifiedMember } from "@/src/lib/storage";
+import { getWebhookUrl, setIdentifiedMember } from "@/src/lib/storage";
 
 export default function VerifySignupScreen() {
   const router = useRouter();
@@ -38,9 +38,9 @@ export default function VerifySignupScreen() {
   const verify = async () => {
     if (!canSubmit) return;
     setError(null);
-    const url = await getMembersWebhook();
+    const url = await getWebhookUrl();
     if (!url) {
-      setError("Members sheet isn't connected. Go back and try again.");
+      setError("Google Sheet isn't connected. Open Home → ⚙️ Settings and paste the Web App URL.");
       return;
     }
     setSubmitting(true);

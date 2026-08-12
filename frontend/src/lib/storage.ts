@@ -164,6 +164,28 @@ export async function clearSheetsWebhook() {
   await AsyncStorage.removeItem(K_SHEETS_WEBHOOK);
 }
 
+/**
+ * Unified webhook URL used by both the Members flow and the Scorecards export
+ * (since the merged Apps Script handles both actions). Writes to both storage
+ * keys so the existing per-feature getters keep working. Reads prefer the
+ * scorecards key and fall back to the members key.
+ */
+export async function getWebhookUrl(): Promise<string | null> {
+  const sheets = await AsyncStorage.getItem(K_SHEETS_WEBHOOK);
+  if (sheets && sheets.trim()) return sheets.trim();
+  const members = await AsyncStorage.getItem(K_MEMBERS_WEBHOOK);
+  return members && members.trim() ? members.trim() : null;
+}
+export async function setWebhookUrl(url: string) {
+  const v = url.trim();
+  await AsyncStorage.setItem(K_SHEETS_WEBHOOK, v);
+  await AsyncStorage.setItem(K_MEMBERS_WEBHOOK, v);
+}
+export async function clearWebhookUrl() {
+  await AsyncStorage.removeItem(K_SHEETS_WEBHOOK);
+  await AsyncStorage.removeItem(K_MEMBERS_WEBHOOK);
+}
+
 export async function markRoundExported(roundId: string) {
   const raw = await AsyncStorage.getItem(K_EXPORTED_ROUNDS);
   const arr: string[] = raw ? JSON.parse(raw) : [];

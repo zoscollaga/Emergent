@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +15,7 @@ import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { fetchMembers, Member } from "@/src/lib/members";
-import { getMembersWebhook, setMembersWebhook } from "@/src/lib/storage";
+import { getWebhookUrl } from "@/src/lib/storage";
 
 export default function MembersScreen() {
   const router = useRouter();
@@ -27,17 +24,12 @@ export default function MembersScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
   const [query, setQuery] = useState("");
-  const [showSetup, setShowSetup] = useState(false);
-  const [webhookInput, setWebhookInput] = useState("");
-  const [setupError, setSetupError] = useState<string | null>(null);
 
-  const load = useCallback(async (url?: string) => {
-    const useUrl = url ?? (await getMembersWebhook());
+  const load = useCallback(async () => {
+    const useUrl = await getWebhookUrl();
     setWebhook(useUrl);
     if (!useUrl) {
       setLoading(false);
-      setShowSetup(true);
-      setWebhookInput("");
       return;
     }
     setLoading(true);
@@ -56,9 +48,9 @@ export default function MembersScreen() {
       let hint: string | undefined;
       if (res.status === 0) {
         message = "Network error.";
-        hint = "Check your internet connection and the Members webhook URL.";
+        hint = "Check your internet connection and the Web App URL in Settings.";
       } else if (res.status === 404) {
-        hint = "Open Apps Script → Deploy → Manage deployments and copy the current .../exec URL.";
+        hint = "Open Apps Script → Deploy → Manage deployments and copy the current .../exec URL, then update it in Settings.";
       } else if (res.status === 401 || res.status === 403) {
         hint = "Deployment access must be set to Anyone (or ask your Workspace admin).";
       } else if (res.message?.startsWith("Response wasn't valid JSON")) {
@@ -87,27 +79,7 @@ export default function MembersScreen() {
     });
   }, [members, query]);
 
-  const openSetup = async () => {
-    setWebhookInput((await getMembersWebhook()) || "");
-    setSetupError(null);
-    setShowSetup(true);
-  };
-
-  const onSaveWebhook = async () => {
-    const url = webhookInput.trim();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(url)) {
-      setSetupError("Must be an Apps Script URL starting with https://script.google.com/");
-      return;
-    }
-    if (!/\/(exec|dev)(\?.*)?$/i.test(url)) {
-      setSetupError("URL is missing /exec. Open Apps Script → Deploy → Manage deployments and copy the Web app URL.");
-      return;
-    }
-    setSetupError(null);
-    await setMembersWebhook(url);
-    setShowSetup(false);
-    load(url);
-  };
+  const openSettings = () => router.push("/settings");
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="members-screen">
@@ -129,7 +101,7 @@ export default function MembersScreen() {
           )}
         </View>
         <Pressable
-          onPress={openSetup}
+          onPress={openSettings}
           hitSlop={12}
           testID="members-settings-button"
           style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
@@ -165,7 +137,7 @@ export default function MembersScreen() {
           <Text style={styles.errorText} testID="members-error-message">{error.message}</Text>
           {error.hint && <Text style={styles.errorHint} testID="members-error-hint">{error.hint}</Text>}
           <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
-            <Pressable onPress={openSetup} style={styles.retryBtnSecondary} testID="members-fix-url-button">
+            <Pressable onPress={openSettings} style={styles.retryBtnSecondary} testID="members-fix-url-button">
               <Text style={styles.retryTextSecondary}>Update URL</Text>
             </Pressable>
             <Pressable onPress={() => load()} style={styles.retryBtn} testID="members-retry-button">
@@ -176,9 +148,9 @@ export default function MembersScreen() {
       ) : !webhook ? (
         <View style={styles.center}>
           <Ionicons name="link-outline" size={28} color={colors.brand} />
-          <Text style={styles.hint}>Connect your Members Google Sheet to see the roster.</Text>
-          <Pressable onPress={openSetup} style={styles.retryBtn} testID="members-connect-button">
-            <Text style={styles.retryText}>Connect sheet</Text>
+          <Text style={styles.hint}>Connect your Google Sheet in Settings to see the roster.</Text>
+          <Pressable onPress={openSettings} style={styles.retryBtn} testID="members-connect-button">
+            <Text style={styles.retryText}>Open Settings</Text>
           </Pressable>
         </View>
       ) : (
@@ -207,18 +179,6 @@ export default function MembersScreen() {
           </Pressable>
         </View>
       )}
-
-      <SetupModal
-        visible={showSetup}
-        value={webhookInput}
-        onChange={setWebhookInput}
-        onCancel={() => {
-          setShowSetup(false);
-          if (!webhook) load();
-        }}
-        onSave={onSaveWebhook}
-        error={setupError}
-      />
     </SafeAreaView>
   );
 }
@@ -279,103 +239,6 @@ function MemberRow({ member }: { member: Member }) {
         </Pressable>
       ) : null}
     </View>
-  );
-}
-
-function SetupModal({
-  visible,
-  value,
-  onChange,
-  onCancel,
-  onSave,
-  error,
-}: {
-  visible: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
-  error: string | null;
-}) {
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <View style={styles.modalBackdrop}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ width: "100%" }}
-        >
-          <View style={styles.sheet} testID="members-setup-modal">
-            <View style={styles.sheetGrabber} />
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.sheetTitle}>Connect Members Sheet</Text>
-              <Text style={styles.sheetBody}>
-                1. Create a spreadsheet named{" "}
-                <Text style={{ fontFamily: typography.textBold }}>Members</Text> with these
-                columns in row 1:{"\n"}
-                Member ID · First Name · Last Name · Handicap · Status · Mobile
-              </Text>
-              <Text style={styles.sheetBody}>
-                2. Extensions → Apps Script. Paste this and Save:
-              </Text>
-              <View style={styles.codeBlock}>
-                <Text style={styles.codeText} selectable>
-{`function doGet(e){
-  const sh = SpreadsheetApp.getActive().getSheets()[0];
-  const values = sh.getDataRange().getValues();
-  const [header, ...rows] = values;
-  const H = (n) => header.findIndex(h => String(h).trim().toLowerCase() === n);
-  const cols = { id:H('member id'), first:H('first name'), last:H('last name'),
-                 hcp:H('handicap'), status:H('status'), mobile:H('mobile') };
-  const members = rows.filter(r => r[cols.first] || r[cols.last]).map(r => ({
-    member_id : String(r[cols.id] ?? '').trim(),
-    first_name: String(r[cols.first] ?? ''),
-    last_name : String(r[cols.last] ?? ''),
-    handicap  : (r[cols.hcp] === '' || r[cols.hcp] == null) ? null : Number(r[cols.hcp]),
-    status    : String(r[cols.status] ?? ''),
-    mobile    : String(r[cols.mobile] ?? '')
-  }));
-  return ContentService.createTextOutput(JSON.stringify({members}))
-    .setMimeType(ContentService.MimeType.JSON);
-}`}
-                </Text>
-              </View>
-              <Text style={styles.sheetBody}>
-                3. Deploy → New deployment → Web app → Execute as: Me, Access: Anyone.{"\n"}
-                4. Paste the .../exec URL below.
-              </Text>
-              <TextInput
-                testID="members-webhook-input"
-                value={value}
-                onChangeText={onChange}
-                placeholder="https://script.google.com/macros/s/…/exec"
-                placeholderTextColor={colors.muted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                style={styles.urlInput}
-              />
-              {error && <Text style={styles.formError}>{error}</Text>}
-              <View style={styles.modalActions}>
-                <Pressable
-                  onPress={onCancel}
-                  testID="members-setup-cancel"
-                  style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
-                >
-                  <Text style={styles.secondaryBtnText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={onSave}
-                  testID="members-setup-save"
-                  style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
-                >
-                  <Text style={styles.primaryBtnText}>SAVE & LOAD</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
   );
 }
 
@@ -515,76 +378,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 1,
   },
-
-  // Modal
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(17,24,39,0.55)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-    maxHeight: "85%",
-    gap: spacing.md,
-  },
-  sheetGrabber: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
-    marginBottom: spacing.sm,
-  },
-  sheetTitle: { fontFamily: typography.display, fontSize: 20, color: colors.onSurface },
-  sheetBody: {
-    fontFamily: typography.text,
-    color: colors.onSurfaceSecondary,
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: spacing.sm,
-  },
-  codeBlock: {
-    backgroundColor: "#0F172A",
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  codeText: {
-    color: "#E2E8F0",
-    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  urlInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    height: 52,
-    fontFamily: typography.text,
-    fontSize: 14,
-    color: colors.onSurface,
-    backgroundColor: colors.surface,
-    marginTop: spacing.sm,
-  },
-  formError: { color: colors.error, fontFamily: typography.text, fontSize: 12, marginTop: 4 },
-  modalActions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
-  primaryBtn: {
-    flex: 1.4,
-    height: 52,
-    borderRadius: radius.pill,
-    backgroundColor: colors.brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: { color: colors.onBrandPrimary, fontFamily: typography.textBold, fontSize: 14, letterSpacing: 0.5 },
-  secondaryBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryBtnText: { color: colors.onSurface, fontFamily: typography.textBold, fontSize: 14 },
 });

@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,11 +22,9 @@ import { fetchMembers, Member } from "@/src/lib/members";
 import {
   clearActiveSessionId,
   getDeviceId,
-  getMembersWebhook,
-  getSheetsWebhook,
+  getWebhookUrl,
   isRoundExported,
   markRoundExported,
-  setSheetsWebhook,
 } from "@/src/lib/storage";
 import {
   buildPlayerCsv,
@@ -42,7 +36,8 @@ type ExportState =
   | { kind: "idle" }
   | { kind: "sending" }
   | { kind: "success" }
-  | { kind: "error"; message: string; hint?: string; details?: string };
+  | { kind: "error"; message: string; hint?: string; details?: string }
+  | { kind: "no_webhook" };
 
 export default function PairSummary() {
   const router = useRouter();
@@ -53,9 +48,6 @@ export default function PairSummary() {
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   const [alreadyExported, setAlreadyExported] = useState(false);
   const [partnerMember, setPartnerMember] = useState<Member | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
-  const [webhookInput, setWebhookInput] = useState("");
-  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -86,11 +78,11 @@ export default function PairSummary() {
   const me = session?.players.find((p) => p.device_id === deviceId) || null;
   const partner = session?.players.find((p) => p.device_id !== deviceId) || null;
 
-  // Load partner's full name and handicap from Members sheet
+  // Load partner's full name and handicap from the Web App
   useEffect(() => {
     if (!partner?.member_id || partnerMember?.member_id === partner.member_id) return;
     (async () => {
-      const url = await getMembersWebhook();
+      const url = await getWebhookUrl();
       if (!url) return;
       const res = await fetchMembers(url);
       if (res.ok) {
@@ -210,34 +202,13 @@ export default function PairSummary() {
 
   const onSubmitCard = async () => {
     if (!partner) return;
-    const stored = await getSheetsWebhook();
+    const stored = await getWebhookUrl();
     if (!stored) {
-      setWebhookInput("");
-      setSetupError(null);
-      setShowSetup(true);
+      setExportState({ kind: "no_webhook" });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       return;
     }
     performExport(stored);
-  };
-
-  const onSaveWebhook = async () => {
-    const url = webhookInput.trim();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(url)) {
-      setSetupError(
-        "That doesn't look like an Apps Script web app URL. It should start with https://script.google.com/",
-      );
-      return;
-    }
-    if (!/\/(exec|dev)(\?.*)?$/i.test(url)) {
-      setSetupError(
-        "This URL is missing /exec. In Apps Script open Deploy → Manage deployments and copy the Web app URL (it ends with …/exec).",
-      );
-      return;
-    }
-    setSetupError(null);
-    await setSheetsWebhook(url);
-    setShowSetup(false);
-    performExport(url);
   };
 
   const goHome = async () => {
@@ -282,18 +253,6 @@ export default function PairSummary() {
           <Text style={styles.title}>Round Summary</Text>
           <Text style={styles.subtitle} numberOfLines={1}>{session.course_name}</Text>
         </View>
-        <Pressable
-          onPress={async () => {
-            setWebhookInput((await getSheetsWebhook()) || "");
-            setSetupError(null);
-            setShowSetup(true);
-          }}
-          hitSlop={12}
-          testID="sheets-settings-button"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.onSurfaceSecondary} />
-        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
@@ -349,6 +308,19 @@ export default function PairSummary() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {exportState.kind === "no_webhook" && (
+          <Pressable
+            onPress={() => router.push("/settings")}
+            testID="export-no-webhook-banner"
+            style={({ pressed }) => [styles.warnBanner, pressed && { opacity: 0.85 }]}
+          >
+            <Ionicons name="settings-outline" size={16} color="#92400E" />
+            <Text style={styles.warnBannerText}>
+              No Web App URL saved yet. Tap to open Settings and add one.
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#92400E" />
+          </Pressable>
+        )}
         {exportState.kind === "error" && (
           <View style={styles.errorBanner} testID="export-error-banner">
             <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -414,14 +386,6 @@ export default function PairSummary() {
         </View>
       </View>
 
-      <SetupModal
-        visible={showSetup}
-        value={webhookInput}
-        onChange={setWebhookInput}
-        onCancel={() => setShowSetup(false)}
-        onSave={onSaveWebhook}
-        error={setupError}
-      />
     </SafeAreaView>
   );
 }
@@ -484,120 +448,6 @@ function getScoreColor(diff: number | null): { bg: string; fg: string } {
   if (diff === 0) return { bg: colors.surfaceSecondary, fg: colors.onSurface };
   if (diff === 1) return { bg: "#FEE2E2", fg: "#991B1B" };
   return { bg: "#FCA5A5", fg: "#7F1D1D" };
-}
-
-function SetupModal({
-  visible,
-  value,
-  onChange,
-  onCancel,
-  onSave,
-  error,
-}: {
-  visible: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
-  error: string | null;
-}) {
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <View style={styles.modalBackdrop}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ width: "100%" }}
-        >
-          <View style={styles.sheet} testID="sheets-setup-modal">
-            <View style={styles.sheetGrabber} />
-            <Text style={styles.sheetTitle}>Connect Google Sheet · Scorecards</Text>
-            <Text style={styles.sheetBody}>
-              1. Create a spreadsheet named <Text style={{ fontFamily: typography.textBold }}>Scorecards</Text>.{"\n"}
-              2. Extensions → Apps Script. Paste this and Save:
-            </Text>
-            <View style={styles.codeBlock}>
-              <Text style={styles.codeText} selectable>
-{`function doPost(e){
-  const d = JSON.parse(e.postData.contents);
-  const rows = Utilities.parseCsv(d.csv);       // [header, data]
-  const ss = SpreadsheetApp.getActive();
-  const name = d.filename || 'Round';           // e.g. "2026-06-04"
-  let sh = ss.getSheetByName(name);
-  if (!sh) {
-    sh = ss.insertSheet(name);
-    sh.getRange(1,1,1,rows[0].length).setValues([rows[0]]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-  }
-  // Upsert by Player Member ID (column C)
-  const playerId = String(rows[1][2] || '').trim();
-  const data = sh.getDataRange().getValues();
-  let target = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (playerId && String(data[i][2]).trim() === playerId) { target = i + 1; break; }
-  }
-  // Assign a Scorecard ID if the client didn't send one
-  let scId = String(rows[1][0] || '').trim();
-  if (!scId) {
-    if (target) {
-      scId = String(data[target-1][0] || '').trim();
-    }
-    if (!scId) {
-      const datePart = name.replace(/-/g,'');
-      let n = 1;
-      for (let i = 1; i < data.length; i++) {
-        const v = String(data[i][0] || '');
-        const m = v.match(new RegExp('^SC-' + datePart + '-(\\\\d+)$'));
-        if (m) n = Math.max(n, parseInt(m[1],10) + 1);
-      }
-      scId = 'SC-' + datePart + '-' + ('000'+n).slice(-3);
-    }
-    rows[1][0] = scId;
-  }
-  const row = target || (sh.getLastRow() + 1);
-  sh.getRange(row, 1, 1, rows[1].length).setValues([rows[1]]);
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok:true, scorecard_id: scId }))
-    .setMimeType(ContentService.MimeType.JSON);
-}`}
-              </Text>
-            </View>
-            <Text style={styles.sheetBody}>
-              3. Deploy → New deployment → Web app → Execute as: Me, Access: Anyone.{"\n"}
-              4. Paste the URL below.
-            </Text>
-            <TextInput
-              testID="sheets-webhook-input"
-              value={value}
-              onChangeText={onChange}
-              placeholder="https://script.google.com/macros/s/…/exec"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={styles.urlInput}
-            />
-            {error && <Text style={styles.formError}>{error}</Text>}
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={onCancel}
-                testID="sheets-setup-cancel"
-                style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
-              >
-                <Text style={styles.secondaryBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onSave}
-                testID="sheets-setup-save"
-                style={({ pressed }) => [styles.endRoundBtn, pressed && { opacity: 0.85 }]}
-              >
-                <Text style={styles.endRoundBtnText}>SAVE & EXPORT</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -754,48 +604,20 @@ const styles = StyleSheet.create({
   },
   successBannerText: { flex: 1, color: colors.brand, fontFamily: typography.textBold, fontSize: 12 },
 
-  // Modal
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17,24,39,0.55)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-    gap: spacing.md,
-  },
-  sheetGrabber: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
-    marginBottom: spacing.sm,
-  },
-  sheetTitle: { fontFamily: typography.display, fontSize: 20, color: colors.onSurface },
-  sheetBody: { fontFamily: typography.text, color: colors.onSurfaceSecondary, fontSize: 13, lineHeight: 20 },
-  codeBlock: { backgroundColor: "#0F172A", borderRadius: radius.md, padding: spacing.md },
-  codeText: {
-    color: "#E2E8F0",
-    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  urlInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
+  warnBanner: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    padding: spacing.md,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    height: 52,
-    fontFamily: typography.text,
-    fontSize: 14,
-    color: colors.onSurface,
-    backgroundColor: colors.surface,
+    marginBottom: spacing.md,
   },
-  formError: { color: colors.error, fontFamily: typography.text, fontSize: 12 },
-  modalActions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  warnBannerText: {
+    flex: 1,
+    color: "#92400E",
+    fontFamily: typography.textBold,
+    fontSize: 13,
+    lineHeight: 17,
+  },
 });

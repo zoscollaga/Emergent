@@ -85,20 +85,30 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.heroContent} edges={["top"]}>
           <View style={styles.brandRow}>
             <Text style={styles.brandLabel} testID="brand-label">GOLF SCORECARD</Text>
-            <Pressable
-              onPress={() => router.push("/identify")}
-              hitSlop={12}
-              testID="identity-chip"
-              style={({ pressed }) => [styles.memberChip, pressed && { opacity: 0.7 }]}
-            >
-              <Ionicons name="person-circle" size={14} color="#D1FAE5" />
-              <Text style={styles.memberChipText} numberOfLines={1}>
-                {identity
-                  ? `${identity.first_name} ${identity.last_name}${identity.member_id ? " · #" + identity.member_id : ""}`
-                  : "Choose your name"}
-              </Text>
-              <Ionicons name="chevron-forward" size={12} color="#D1FAE5" />
-            </Pressable>
+            <View style={styles.brandActions}>
+              <Pressable
+                onPress={() => router.push("/identify")}
+                hitSlop={12}
+                testID="identity-chip"
+                style={({ pressed }) => [styles.memberChip, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="person-circle" size={14} color="#D1FAE5" />
+                <Text style={styles.memberChipText} numberOfLines={1}>
+                  {identity
+                    ? `${identity.first_name} ${identity.last_name}${identity.member_id ? " · #" + identity.member_id : ""}`
+                    : "Choose your name"}
+                </Text>
+                <Ionicons name="chevron-forward" size={12} color="#D1FAE5" />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/settings")}
+                hitSlop={12}
+                testID="settings-button"
+                style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="settings-outline" size={16} color="#D1FAE5" />
+              </Pressable>
+            </View>
           </View>
           <View style={{ flex: 1 }} />
           <Text style={styles.eyebrow}>Today{"\u2019"}s course</Text>
@@ -149,6 +159,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   brandRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  brandActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  settingsBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   brandLabel: {
     color: colors.onBrandSecondary,
     letterSpacing: 3,

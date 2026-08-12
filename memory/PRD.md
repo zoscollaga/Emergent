@@ -31,6 +31,12 @@ A polished, high-contrast Expo (React Native) mobile app for golfers to quickly 
 - On first open of a hole, Score defaults to the hole's **Par** and Putts defaults to **2**. Values already entered on prior visits are preserved.
 - **Next Hole / Finish Round is disabled** until both Score and Putts have a value (auto-defaults satisfy this by design).
 
+## Settings (v1.4)
+- One **Settings screen** (accessed via ⚙️ gear on Home) is the single place to enter the **Google Apps Script Web App URL**.
+- One URL now powers both the Members roster (`doGet` returning `{members}`) and Scorecard export (`doPost` with `{csv, filename, meta}`). The Apps Script itself is a single merged file that routes by payload type.
+- Settings screen also has a **Test** button that pings the URL and confirms it returns member data.
+- Settings icons removed from Summary and Pair Summary screens. When a user tries to export without a saved URL, an inline banner links directly to Settings.
+
 ## Backend
 - `GET /api/courses/keilor` and `/api/courses/nearby` — Keilor only.
 - `POST /api/sessions` — creates a paired session with random 6-digit join code and deterministic 4-digit course id.

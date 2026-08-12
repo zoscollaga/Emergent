@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { signUpStart, Member } from "@/src/lib/members";
-import { getMembersWebhook, setIdentifiedMember } from "@/src/lib/storage";
+import { getWebhookUrl, setIdentifiedMember } from "@/src/lib/storage";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -56,12 +56,12 @@ export default function SignUpScreen() {
 
   const submit = async () => {
     setBanner(null);
-    const url = await getMembersWebhook();
+    const url = await getWebhookUrl();
     if (!url) {
       setBanner({
         kind: "error",
-        message: "Members sheet isn't connected yet.",
-        hint: "Go to Members → ⚙️ and paste your Google Apps Script /exec URL first.",
+        message: "Google Sheet isn't connected yet.",
+        hint: "Go to Home → ⚙️ Settings and paste your Google Apps Script /exec URL first.",
       });
       return;
     }
@@ -101,15 +101,15 @@ export default function SignUpScreen() {
       let hint: string | undefined;
       if (res.status === 0) {
         msg = "Network error.";
-        hint = `Couldn't reach the Members webhook. Check your connection and the /exec URL in Members → ⚙️.${res.message ? " Underlying error: " + res.message : ""}`;
+        hint = `Couldn't reach the Web App. Check your connection and the /exec URL in Home → ⚙️ Settings.${res.message ? " Underlying error: " + res.message : ""}`;
       } else if (res.status === 404) {
-        hint = "Your Members webhook returned 404. Redeploy the Apps Script Web app and update the URL in Members → ⚙️.";
+        hint = "Your Web App returned 404. Redeploy the Apps Script Web app and update the URL in Home → ⚙️ Settings.";
       } else if (res.status === 401 || res.status === 403) {
         hint = "Deployment access must be set to Anyone.";
       } else if (res.status === 200) {
         // Handled response but not the expected shape — usually the Apps Script
         // hasn't been updated to the new signup_start / signup_verify handlers yet.
-        msg = "Members webhook responded, but with an unexpected reply.";
+        msg = "Web App responded, but with an unexpected reply.";
         hint = res.message;
       } else {
         hint = res.message;
