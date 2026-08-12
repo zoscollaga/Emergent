@@ -205,9 +205,9 @@ export default function AddCourseScreen() {
           <View style={styles.tableCard}>
             <View style={styles.gridHeader}>
               <Text style={[styles.gridHeaderText, styles.gridHole]}>#</Text>
-              <Text style={[styles.gridHeaderText, styles.gridCell]}>Par</Text>
-              <Text style={[styles.gridHeaderText, styles.gridCell]}>Dist (m)</Text>
-              <Text style={[styles.gridHeaderText, styles.gridCell]}>Index</Text>
+              <Text style={[styles.gridHeaderText, styles.gridPar]}>Par</Text>
+              <Text style={[styles.gridHeaderText, styles.gridDist]}>Dist (m)</Text>
+              <Text style={[styles.gridHeaderText, styles.gridIdx]}>Idx</Text>
             </View>
             {holes.map((h, i) => (
               <View key={i} style={styles.gridRow} testID={`hole-row-${i + 1}`}>
@@ -221,7 +221,7 @@ export default function AddCourseScreen() {
                   keyboardType="number-pad"
                   returnKeyType="next"
                   maxLength={1}
-                  style={styles.gridInput}
+                  style={[styles.gridInput, styles.gridPar]}
                   selectTextOnFocus
                 />
                 <TextInput
@@ -233,7 +233,7 @@ export default function AddCourseScreen() {
                   keyboardType="number-pad"
                   returnKeyType="next"
                   maxLength={4}
-                  style={styles.gridInput}
+                  style={[styles.gridInput, styles.gridDist]}
                   selectTextOnFocus
                 />
                 <TextInput
@@ -245,7 +245,7 @@ export default function AddCourseScreen() {
                   keyboardType="number-pad"
                   returnKeyType={i < 17 ? "next" : "done"}
                   maxLength={2}
-                  style={styles.gridInput}
+                  style={[styles.gridInput, styles.gridIdx]}
                   selectTextOnFocus
                 />
               </View>
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: typography.display, fontSize: 24, color: colors.onSurface },
   subtitle: { fontFamily: typography.text, fontSize: 12, color: colors.muted, marginTop: 2 },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
   },
@@ -339,11 +339,12 @@ const styles = StyleSheet.create({
   tableCard: {
     backgroundColor: colors.surfaceSecondary,
     borderRadius: radius.lg,
-    padding: spacing.sm,
+    padding: 8,
   },
   gridHeader: {
     flexDirection: "row",
-    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    paddingHorizontal: 6,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
@@ -351,37 +352,39 @@ const styles = StyleSheet.create({
   },
   gridHeaderText: {
     fontFamily: typography.textBold,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.muted,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
     textTransform: "uppercase",
     textAlign: "center",
   },
   gridRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
     gap: 6,
   },
-  gridHole: { width: 32 },
+  gridHole: { width: 24, textAlign: "center" },
   gridHoleText: {
-    width: 32,
+    width: 24,
     fontFamily: typography.textBold,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.onSurface,
     textAlign: "center",
   },
+  gridPar: { width: 46 },
+  gridDist: { flex: 1 },
+  gridIdx: { width: 46 },
   gridCell: { flex: 1 },
   gridInput: {
-    flex: 1,
-    height: 42,
+    height: 40,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 4,
     fontFamily: typography.textBold,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.onSurface,
     backgroundColor: colors.surface,
     textAlign: "center",
