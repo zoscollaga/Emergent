@@ -521,23 +521,43 @@ function SetupModal({
   const d = JSON.parse(e.postData.contents);
   const rows = Utilities.parseCsv(d.csv);       // [header, data]
   const ss = SpreadsheetApp.getActive();
-  const name = d.filename || 'Round';           // e.g. "1423-20260804"
+  const name = d.filename || 'Round';           // e.g. "2026-06-04"
   let sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
     sh.getRange(1,1,1,rows[0].length).setValues([rows[0]]).setFontWeight('bold');
     sh.setFrozenRows(1);
   }
-  // Upsert by Player Member ID (column D)
-  const playerId = String(rows[1][3]);
+  // Upsert by Player Member ID (column C)
+  const playerId = String(rows[1][2] || '').trim();
   const data = sh.getDataRange().getValues();
   let target = 0;
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][3]) === playerId) { target = i + 1; break; }
+    if (playerId && String(data[i][2]).trim() === playerId) { target = i + 1; break; }
+  }
+  // Assign a Scorecard ID if the client didn't send one
+  let scId = String(rows[1][0] || '').trim();
+  if (!scId) {
+    if (target) {
+      scId = String(data[target-1][0] || '').trim();
+    }
+    if (!scId) {
+      const datePart = name.replace(/-/g,'');
+      let n = 1;
+      for (let i = 1; i < data.length; i++) {
+        const v = String(data[i][0] || '');
+        const m = v.match(new RegExp('^SC-' + datePart + '-(\\\\d+)$'));
+        if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+      }
+      scId = 'SC-' + datePart + '-' + ('000'+n).slice(-3);
+    }
+    rows[1][0] = scId;
   }
   const row = target || (sh.getLastRow() + 1);
   sh.getRange(row, 1, 1, rows[1].length).setValues([rows[1]]);
-  return ContentService.createTextOutput('ok');
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok:true, scorecard_id: scId }))
+    .setMimeType(ContentService.MimeType.JSON);
 }`}
               </Text>
             </View>

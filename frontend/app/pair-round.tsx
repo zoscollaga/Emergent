@@ -97,6 +97,32 @@ export default function PairRoundScreen() {
     marker_putts: null,
   };
 
+  // Auto-fill defaults (score=par, putts=2) the first time a hole is opened on
+  // this device. Preserves any values already entered/submitted.
+  useEffect(() => {
+    if (!ready || !hole) return;
+    const cur = entries[currentHole];
+    const needsInit =
+      !cur ||
+      cur.player_score == null ||
+      cur.player_putts == null ||
+      cur.marker_score == null ||
+      cur.marker_putts == null;
+    if (!needsInit) return;
+    setEntries((prev) => {
+      const existing = prev[currentHole];
+      return {
+        ...prev,
+        [currentHole]: {
+          player_score: existing?.player_score ?? hole.par,
+          player_putts: existing?.player_putts ?? 2,
+          marker_score: existing?.marker_score ?? hole.par,
+          marker_putts: existing?.marker_putts ?? 2,
+        },
+      };
+    });
+  }, [ready, currentHole, hole, entries]);
+
   const holeStatus: Status =
     (session?.hole_status?.[String(currentHole)] as Status) || "pending";
 

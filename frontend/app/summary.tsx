@@ -19,7 +19,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   FinishedRound,
+  IdentifiedMember,
   StoredCourse,
+  getIdentifiedMember,
   getRoundHistory,
   getSelectedCourse,
   getSheetsWebhook,
@@ -27,7 +29,8 @@ import {
   markRoundExported,
   setSheetsWebhook,
 } from "@/src/lib/storage";
-import { exportToGoogleSheet } from "@/src/lib/sheets";
+import { exportSoloRoundToSheet } from "@/src/lib/sheets";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type ExportState =
   | { kind: "idle" }
@@ -40,6 +43,7 @@ export default function SummaryScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [round, setRound] = useState<FinishedRound | null>(null);
   const [course, setCourse] = useState<StoredCourse | null>(null);
+  const [identified, setIdentified] = useState<IdentifiedMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [alreadyExported, setAlreadyExported] = useState(false);
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
@@ -54,6 +58,7 @@ export default function SummaryScreen() {
       setRound(target || null);
       const c = await getSelectedCourse();
       setCourse(c);
+      setIdentified(await getIdentifiedMember());
       if (target) {
         setAlreadyExported(await isRoundExported(target.id));
       }
@@ -65,8 +70,21 @@ export default function SummaryScreen() {
     if (!round) return;
     setExportState({ kind: "sending" });
     Haptics.selectionAsync().catch(() => {});
-    const result = await exportToGoogleSheet(webhookUrl, round, course);
+    // Reuse previously-assigned Scorecard ID if we've exported this round
+    // before so edits update the same row instead of duplicating.
+    const key = `scId::solo::${round.id}`;
+    const priorId = (await AsyncStorage.getItem(key)) || undefined;
+    const result = await exportSoloRoundToSheet(
+      webhookUrl,
+      round,
+      course,
+      identified,
+      priorId,
+    );
     if (result.ok) {
+      if (result.scorecard_id) {
+        await AsyncStorage.setItem(key, result.scorecard_id);
+      }
       await markRoundExported(round.id);
       setAlreadyExported(true);
       setExportState({ kind: "success", when: Date.now() });
@@ -298,23 +316,54 @@ function SetupModal({
         >
           <View style={styles.sheet} testID="sheets-setup-modal">
             <View style={styles.sheetGrabber} />
-            <Text style={styles.sheetTitle}>Connect Google Sheet</Text>
+            <Text style={styles.sheetTitle}>Connect Google Sheet · Scorecards</Text>
             <Text style={styles.sheetBody}>
-              1. Open a new Google Sheet.{"\n"}
+              1. Create a spreadsheet named <Text style={{ fontFamily: typography.textBold }}>Scorecards</Text>.{"\n"}
               2. Extensions → Apps Script. Paste this and Save:
             </Text>
             <View style={styles.codeBlock}>
               <Text style={styles.codeText} selectable>
 {`function doPost(e){
-  const data = JSON.parse(e.postData.contents);
-  const rows = Utilities.parseCsv(data.csv);
+  const d = JSON.parse(e.postData.contents);
+  const rows = Utilities.parseCsv(d.csv);       // [header, data]
   const ss = SpreadsheetApp.getActive();
-  const name = data.filename || 'Round';
+  const name = d.filename || 'Round';           // e.g. "2026-06-04"
   let sh = ss.getSheetByName(name);
-  if (sh) sh.clear(); else sh = ss.insertSheet(name);
-  sh.getRange(1,1,rows.length,rows[0].length).setValues(rows);
-  sh.setFrozenRows(1);
-  return ContentService.createTextOutput('ok');
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,rows[0].length).setValues([rows[0]]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  // Upsert by Player Member ID (column C)
+  const playerId = String(rows[1][2] || '').trim();
+  const data = sh.getDataRange().getValues();
+  let target = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (playerId && String(data[i][2]).trim() === playerId) { target = i + 1; break; }
+  }
+  // Assign a Scorecard ID if the client didn't send one
+  let scId = String(rows[1][0] || '').trim();
+  if (!scId) {
+    if (target) {
+      scId = String(data[target-1][0] || '').trim();
+    }
+    if (!scId) {
+      const datePart = name.replace(/-/g,'');
+      let n = 1;
+      for (let i = 1; i < data.length; i++) {
+        const v = String(data[i][0] || '');
+        const m = v.match(new RegExp('^SC-' + datePart + '-(\\\\d+)$'));
+        if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+      }
+      scId = 'SC-' + datePart + '-' + ('000'+n).slice(-3);
+    }
+    rows[1][0] = scId;
+  }
+  const row = target || (sh.getLastRow() + 1);
+  sh.getRange(row, 1, 1, rows[1].length).setValues([rows[1]]);
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok:true, scorecard_id: scId }))
+    .setMimeType(ContentService.MimeType.JSON);
 }`}
               </Text>
             </View>

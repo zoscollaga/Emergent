@@ -23,9 +23,13 @@ A polished, high-contrast Expo (React Native) mobile app for golfers to quickly 
 
 ## Google Sheets Export
 - Target: a spreadsheet called **Scorecards**.
-- Container-bound Apps Script creates one **tab per player per round** using the filename from the app.
+- Container-bound Apps Script creates one **tab per date** (YYYY-MM-DD, local) with rows upserted by Member ID (col C). The script assigns a **Scorecard ID** (`SC-YYYYMMDD-NNN`) on first insert and echoes it back to the app.
 - POSTed as `text/plain` JSON (`{csv, filename, meta}`) to skip Apps Script CORS preflight.
-- CSV columns for pair mode: `Date, Course, Course ID, Player Member ID, Marker Member ID, Total Score, Total Putts, H1 Par/Score/Putts … H18 Par/Score/Putts`.
+- CSV column order (both solo + pair modes): `Scorecard ID, Player Name, Member ID, Date, Course, Gross Score, Handicap, Total Putts, H1 Score, H1 Putts, … H18 Score, H18 Putts`.
+
+## Scoring UX (v1.3)
+- On first open of a hole, Score defaults to the hole's **Par** and Putts defaults to **2**. Values already entered on prior visits are preserved.
+- **Next Hole / Finish Round is disabled** until both Score and Putts have a value (auto-defaults satisfy this by design).
 
 ## Backend
 - `GET /api/courses/keilor` and `/api/courses/nearby` — Keilor only.

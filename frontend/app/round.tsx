@@ -89,6 +89,24 @@ export default function RoundScreen() {
     [entries, currentHole],
   );
 
+  // Auto-fill defaults (score = par, putts = 2) the FIRST time a hole is opened.
+  // Preserves any values the user has already entered.
+  useEffect(() => {
+    if (!ready || !holeInfo || !entry) return;
+    if (entry.score != null && entry.putts != null) return;
+    const updated = entries.map((e) =>
+      e.number === currentHole
+        ? {
+            ...e,
+            score: e.score ?? holeInfo.par,
+            putts: e.putts ?? 2,
+          }
+        : e,
+    );
+    setEntries(updated);
+    persist(updated, currentHole);
+  }, [ready, currentHole, holeInfo, entry, entries, persist]);
+
   const updateField = (field: "score" | "putts", delta: number) => {
     if (!entry) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -163,6 +181,7 @@ export default function RoundScreen() {
   const isLast = currentHole === 18;
   const displayScore = entry.score ?? "-";
   const displayPutts = entry.putts ?? "-";
+  const canAdvance = entry.score != null && entry.putts != null;
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="round-screen">
@@ -235,12 +254,13 @@ export default function RoundScreen() {
         {isLast ? (
           <Pressable
             onPress={finishRound}
-            disabled={finishing}
+            disabled={finishing || !canAdvance}
             testID="finish-round-button"
             style={({ pressed }) => [
               styles.nextBtn,
               { backgroundColor: colors.success },
-              pressed && { opacity: 0.85 },
+              (finishing || !canAdvance) && styles.btnDisabled,
+              pressed && !(finishing || !canAdvance) && { opacity: 0.85 },
             ]}
           >
             {finishing ? (
@@ -255,8 +275,13 @@ export default function RoundScreen() {
         ) : (
           <Pressable
             onPress={goNext}
+            disabled={!canAdvance}
             testID="next-hole-button"
-            style={({ pressed }) => [styles.nextBtn, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [
+              styles.nextBtn,
+              !canAdvance && styles.btnDisabled,
+              pressed && canAdvance && { opacity: 0.85 },
+            ]}
           >
             <Text style={styles.nextBtnText}>Next Hole</Text>
             <Ionicons name="chevron-forward" size={22} color={colors.onBrandPrimary} />
