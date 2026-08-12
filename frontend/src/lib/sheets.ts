@@ -74,67 +74,73 @@ export async function exportToGoogleSheet(
   }
 }
 
-/** Format the pair-scoring export sheet name: `COURSE-YYYYMMDD` (local time).
- *  All rounds played on the same day at the same course collate as rows in this one tab. */
+/** Format the pair-scoring export sheet name: `YYYY-MM-DD` (local time).
+ *  All scorecards played on the same date land as rows in this one tab. */
 export function formatFilename(
   _memberId: string,
   startedAtIso: string,
-  courseShortId: string,
+  _courseShortId: string,
 ): string {
   const d = new Date(startedAtIso);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const ymd =
-    d.getFullYear().toString() +
-    pad(d.getMonth() + 1) +
-    pad(d.getDate());
-  return `${courseShortId}-${ymd}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** CSV for a single verified player card (used by pair-scoring export). */
+/** CSV for a single verified player card (used by pair-scoring export).
+ * Column order matches the Scorecards spec exactly. Scorecard ID is left blank
+ * on first send — the Apps Script assigns it (SC-YYYYMMDD-NNN) and returns it. */
 export function buildPlayerCsv(payload: {
+  scorecardId?: string;
+  playerName: string;
+  memberId: string;
   startedAt: string;
   courseName: string;
-  courseShortId: string;
-  playerMemberId: string;
-  markerMemberId: string;
-  holes: { number: number; par: number; score: number | null; putts: number | null }[];
-  total_score: number;
-  total_putts: number;
+  grossScore: number;
+  handicap: number | null;
+  totalPutts: number;
+  holes: { number: number; score: number | null; putts: number | null }[];
 }): string {
   const header: string[] = [
+    "Scorecard ID",
+    "Player Name",
+    "Member ID",
     "Date",
     "Course",
-    "Course ID",
-    "Player Member ID",
-    "Marker Member ID",
-    "Total Score",
+    "Gross Score",
+    "Handicap",
     "Total Putts",
   ];
-  for (let i = 1; i <= 18; i++) header.push(`H${i} Par`, `H${i} Score`, `H${i} Putts`);
+  for (let i = 1; i <= 18; i++) header.push(`H${i} Score`, `H${i} Putts`);
+
+  const d = new Date(payload.startedAt);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
   const row: (string | number)[] = [
-    payload.startedAt,
+    payload.scorecardId ?? "",
+    payload.playerName,
+    payload.memberId,
+    dateStr,
     payload.courseName,
-    payload.courseShortId,
-    payload.playerMemberId,
-    payload.markerMemberId,
-    payload.total_score,
-    payload.total_putts,
+    payload.grossScore,
+    payload.handicap ?? "",
+    payload.totalPutts,
   ];
   for (let i = 1; i <= 18; i++) {
     const h = payload.holes.find((x) => x.number === i);
-    row.push(h?.par ?? "", h?.score ?? "", h?.putts ?? "");
+    row.push(h?.score ?? "", h?.putts ?? "");
   }
   return [header, row].map(csvLine).join("\n");
 }
 
-/** POST a single-player CSV to the Apps Script web app.
- * `filename` becomes the tab name in the Scorecards spreadsheet. */
+/** POST a single-player CSV to the Apps Script web app. Response includes the
+ *  assigned Scorecard ID which callers should persist for future edits. */
 export async function exportPlayerCardToSheet(
   webhookUrl: string,
   csv: string,
   filename: string,
   meta: Record<string, string>,
-): Promise<{ ok: boolean; status: number; message?: string }> {
+): Promise<{ ok: boolean; status: number; scorecard_id?: string; message?: string }> {
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -143,7 +149,14 @@ export async function exportPlayerCardToSheet(
       redirect: "follow" as RequestRedirect,
     });
     const text = await res.text().catch(() => "");
-    return { ok: res.ok, status: res.status, message: text.slice(0, 200) };
+    let scorecard_id: string | undefined;
+    try {
+      const data = JSON.parse(text);
+      if (data && data.scorecard_id) scorecard_id = String(data.scorecard_id);
+    } catch {
+      // non-JSON is fine; still surface as success/failure by HTTP status
+    }
+    return { ok: res.ok, status: res.status, scorecard_id, message: text.slice(0, 200) };
   } catch (e: any) {
     return { ok: false, status: 0, message: String(e?.message || e) };
   }

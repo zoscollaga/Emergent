@@ -22,9 +22,11 @@ import {
   finishSession,
   getSession,
 } from "@/src/lib/api";
+import { fetchMembers, Member } from "@/src/lib/members";
 import {
   clearActiveSessionId,
   getDeviceId,
+  getMembersWebhook,
   getSheetsWebhook,
   isRoundExported,
   markRoundExported,
@@ -50,6 +52,7 @@ export default function PairSummary() {
   const [loading, setLoading] = useState(true);
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   const [alreadyExported, setAlreadyExported] = useState(false);
+  const [partnerMember, setPartnerMember] = useState<Member | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [webhookInput, setWebhookInput] = useState("");
   const [setupError, setSetupError] = useState<string | null>(null);
@@ -82,6 +85,27 @@ export default function PairSummary() {
 
   const me = session?.players.find((p) => p.device_id === deviceId) || null;
   const partner = session?.players.find((p) => p.device_id !== deviceId) || null;
+
+  // Load partner's full name and handicap from Members sheet
+  useEffect(() => {
+    if (!partner?.member_id || partnerMember?.member_id === partner.member_id) return;
+    (async () => {
+      const url = await getMembersWebhook();
+      if (!url) return;
+      const res = await fetchMembers(url);
+      if (res.ok) {
+        const target = String(partner.member_id).trim();
+        const found = res.members.find((m) => String(m.member_id).trim() === target);
+        if (found) setPartnerMember(found);
+      }
+    })();
+  }, [partner?.member_id, partnerMember?.member_id]);
+
+  const partnerMemberFullName = (_mid: string): string => {
+    if (!partnerMember) return "";
+    return `${partnerMember.first_name} ${partnerMember.last_name}`.trim();
+  };
+  const partnerHandicap = partnerMember?.handicap ?? null;
 
   // Build the partner's verified card from THIS device's marker entries
   const partnerCard = useMemo(() => {
@@ -136,52 +160,48 @@ export default function PairSummary() {
       session.started_at,
       session.course_short_id,
     );
+    // Reuse previously-assigned Scorecard ID if we've exported this round before,
+    // so edits update the same row instead of creating a duplicate.
+    const key = `scId::${session.id}::${partner.member_id}`;
+    const priorId = (await import("@react-native-async-storage/async-storage")).default.getItem
+      ? await (await import("@react-native-async-storage/async-storage")).default.getItem(key)
+      : null;
+    const playerName = partnerMemberFullName(partner.member_id) || partner.member_id;
     const csv = buildPlayerCsv({
+      scorecardId: priorId || undefined,
+      playerName,
+      memberId: partner.member_id,
       startedAt: session.started_at,
       courseName: session.course_name,
-      courseShortId: session.course_short_id,
-      playerMemberId: partner.member_id,
-      markerMemberId: me?.member_id ?? "",
+      grossScore: partnerCard.total_score,
+      handicap: partnerHandicap,
+      totalPutts: partnerCard.total_putts,
       holes: partnerCard.holes,
-      total_score: partnerCard.total_score,
-      total_putts: partnerCard.total_putts,
     });
     const result = await exportPlayerCardToSheet(webhookUrl, csv, filename, {
       session_id: session.id,
       player_member_id: partner.member_id,
       marker_member_id: me?.member_id ?? "",
       course_short_id: session.course_short_id,
+      scorecard_id: priorId || "",
     });
     if (result.ok) {
+      if (result.scorecard_id) {
+        const AS = (await import("@react-native-async-storage/async-storage")).default;
+        await AS.setItem(key, result.scorecard_id);
+      }
       await markRoundExported(String(sid));
       setAlreadyExported(true);
       setExportState({ kind: "success" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } else {
-      let message: string;
-      let hint: string | undefined;
-      if (result.status === 0) {
-        message = "Network error.";
-        hint = "Check your internet connection and the webhook URL.";
-      } else if (result.status === 404) {
-        message = "URL not found (HTTP 404).";
-        hint =
-          "The web app URL is wrong or the deployment was archived. Open Apps Script → Deploy → Manage deployments, click ✏️ Edit → Deploy, and copy the current .../exec URL. Paste it in the ⚙️ settings.";
-      } else if (result.status === 401 || result.status === 403) {
-        message = `Not authorised (HTTP ${result.status}).`;
-        hint =
-          "Deployment access must be set to Anyone. On a Workspace domain you may need admin approval or use a personal @gmail.com to host the script.";
-      } else if (result.status >= 500) {
-        message = `Script error (HTTP ${result.status}).`;
-        hint =
-          "Check the Apps Script Executions log for the error, or re-deploy a new version.";
-      } else {
-        message = `Sheet rejected the request (HTTP ${result.status}).`;
-      }
+      const msg =
+        result.status === 0
+          ? "Network error. Check your webhook URL and connection."
+          : `Sheet rejected the request (HTTP ${result.status}).`;
       setExportState({
         kind: "error",
-        message,
-        hint,
+        message: msg,
         details: result.message,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
