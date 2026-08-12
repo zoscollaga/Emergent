@@ -20,6 +20,12 @@ import {
 } from "@/src/lib/api";
 import { getDeviceId, getIdentifiedMember, getWebhookUrl, IdentifiedMember } from "@/src/lib/storage";
 import { fetchMembers, Member } from "@/src/lib/members";
+import {
+  buildPlayerCsv,
+  exportPlayerCardToSheet,
+  formatFilename,
+} from "@/src/lib/sheets";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Status = "pending" | "verified" | "mismatch";
 
@@ -44,6 +50,76 @@ export default function PairRoundScreen() {
   const [partnerMember, setPartnerMember] = useState<Member | null>(null);
   // Track submitted values so we can detect edits vs last submitted
   const lastSubmittedRef = useRef<Record<number, LocalEntry>>({});
+  // Track which holes we've already pushed to the leaderboard (per-session)
+  const liveSyncedHolesRef = useRef<Set<number>>(new Set());
+
+  // Broadcast the partner's verified card so far to the Google Sheet so the
+  // Live Leaderboard sees in-progress rounds. Best-effort.
+  const publishPartnerCard = useCallback(
+    async (s: ApiSession) => {
+      const partner = s.players.find((p) => p.device_id !== deviceId);
+      const me = s.players.find((p) => p.device_id === deviceId);
+      if (!partner || !me) return;
+      const url = await getWebhookUrl();
+      if (!url) return;
+      const verifiedHoles = new Set<number>(
+        Object.entries(s.hole_status || {})
+          .filter(([, v]) => v === "verified")
+          .map(([k]) => Number(k))
+          .filter((n) => Number.isFinite(n)),
+      );
+      if (verifiedHoles.size === 0) return;
+      const mineByHole = new Map(
+        s.hole_entries.filter((e) => e.device_id === deviceId).map((e) => [e.hole_number, e]),
+      );
+      const holes = s.holes.map((h) => {
+        const e = mineByHole.get(h.number);
+        const isVerified = verifiedHoles.has(h.number);
+        return {
+          number: h.number,
+          score: isVerified ? e?.marker_score ?? null : null,
+          putts: isVerified ? e?.marker_putts ?? null : null,
+        };
+      });
+      const totalScore = holes.reduce((sum, h) => sum + (h.score || 0), 0);
+      const totalPutts = holes.reduce((sum, h) => sum + (h.putts || 0), 0);
+      const playerName =
+        partnerMember
+          ? `${partnerMember.first_name} ${partnerMember.last_name}`.trim() || partner.member_id
+          : partner.member_id;
+      const handicap = partnerMember?.handicap ?? null;
+      const key = `scId::${s.id}::${partner.member_id}`;
+      const priorId = (await AsyncStorage.getItem(key)) || undefined;
+      const csv = buildPlayerCsv({
+        scorecardId: priorId,
+        playerName,
+        memberId: partner.member_id,
+        startedAt: s.started_at,
+        courseName: s.course_name,
+        grossScore: totalScore,
+        handicap,
+        totalPutts,
+        holes,
+      });
+      const filename = formatFilename(partner.member_id, s.started_at, s.course_short_id);
+      try {
+        const res = await exportPlayerCardToSheet(url, csv, filename, {
+          session_id: s.id,
+          player_member_id: partner.member_id,
+          marker_member_id: me.member_id || "",
+          course_short_id: s.course_short_id,
+          scorecard_id: priorId || "",
+          live: "1",
+        });
+        if (res.ok && res.scorecard_id) {
+          await AsyncStorage.setItem(key, res.scorecard_id);
+        }
+      } catch {
+        // Silent; the next verified hole will retry
+      }
+    },
+    [deviceId, partnerMember],
+  );
 
   useEffect(() => {
     (async () => {
@@ -73,10 +149,21 @@ export default function PairRoundScreen() {
         });
       setEntries((prev) => ({ ...mine, ...prev }));
       setReady(true);
+      // Detect newly-verified holes (verified by the partner's device while we
+      // were polling) and broadcast the updated partner card to the leaderboard.
+      const verifiedNow = Object.entries(s.hole_status || {})
+        .filter(([, v]) => v === "verified")
+        .map(([k]) => Number(k))
+        .filter((n) => Number.isFinite(n));
+      const fresh = verifiedNow.filter((n) => !liveSyncedHolesRef.current.has(n));
+      if (fresh.length > 0) {
+        fresh.forEach((n) => liveSyncedHolesRef.current.add(n));
+        publishPartnerCard(s);
+      }
     } catch (e) {
       setError("Couldn't reach the round. Check your connection.");
     }
-  }, [sid, deviceId]);
+  }, [sid, deviceId, publishPartnerCard]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -204,6 +291,13 @@ export default function PairRoundScreen() {
       });
       setSession(s);
       lastSubmittedRef.current[currentHole] = { ...entry };
+      // If this device just caused the hole to flip to verified, broadcast
+      // the partner's card. Only trigger once per verified hole to avoid spam.
+      const nowVerified = (s.hole_status?.[String(currentHole)] as Status) === "verified";
+      if (nowVerified && !liveSyncedHolesRef.current.has(currentHole)) {
+        liveSyncedHolesRef.current.add(currentHole);
+        publishPartnerCard(s);
+      }
     } catch (e) {
       setError("Submit failed. Try again.");
     } finally {

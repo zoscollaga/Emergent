@@ -23,6 +23,7 @@ export type HoleEntry = {
 };
 
 export type ActiveRound = {
+  id: string;
   course: StoredCourse;
   entries: HoleEntry[];
   currentHole: number;

@@ -18,11 +18,15 @@ import {
   StoredCourse,
   clearActiveRound,
   getActiveRound,
+  getIdentifiedMember,
   getSelectedCourse,
+  getWebhookUrl,
   pushRoundHistory,
   setActiveRound,
 } from "@/src/lib/storage";
 import { saveRound } from "@/src/lib/api";
+import { exportSoloRoundToSheet } from "@/src/lib/sheets";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function RoundScreen() {
   const router = useRouter();
@@ -31,6 +35,8 @@ export default function RoundScreen() {
   const [currentHole, setCurrentHole] = useState(1); // 1..18
   const [ready, setReady] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [roundId, setRoundId] = useState<string>("");
+  const [startedAt, setStartedAt] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -39,6 +45,8 @@ export default function RoundScreen() {
         setCourse(existing.course);
         setEntries(existing.entries);
         setCurrentHole(existing.currentHole);
+        setRoundId(existing.id || String(Date.now()));
+        setStartedAt(existing.startedAt);
       } else {
         const c = await getSelectedCourse();
         if (!c) {
@@ -50,16 +58,21 @@ export default function RoundScreen() {
           score: null,
           putts: null,
         }));
+        const newId = String(Date.now());
+        const startIso = new Date().toISOString();
         const fresh: ActiveRound = {
+          id: newId,
           course: c,
           entries: initial,
           currentHole: 1,
-          startedAt: new Date().toISOString(),
+          startedAt: startIso,
         };
         await setActiveRound(fresh);
         setCourse(c);
         setEntries(initial);
         setCurrentHole(1);
+        setRoundId(newId);
+        setStartedAt(startIso);
       }
       setReady(true);
     })();
@@ -67,16 +80,54 @@ export default function RoundScreen() {
 
   const persist = useCallback(
     async (nextEntries: HoleEntry[], nextHole: number) => {
-      if (!course) return;
+      if (!course || !roundId) return;
       const ar: ActiveRound = {
+        id: roundId,
         course,
         entries: nextEntries,
         currentHole: nextHole,
-        startedAt: new Date().toISOString(),
+        startedAt: startedAt || new Date().toISOString(),
       };
       await setActiveRound(ar);
     },
-    [course],
+    [course, roundId, startedAt],
+  );
+
+  // Best-effort background export for the live leaderboard. Fires only if a
+  // webhook URL is configured (env default or user override) and never blocks
+  // the UI. Re-uses the assigned Scorecard ID so subsequent updates upsert the
+  // same sheet row.
+  const syncLiveScorecard = useCallback(
+    async (snapshot: HoleEntry[]) => {
+      if (!course || !roundId || !startedAt) return;
+      const url = await getWebhookUrl();
+      if (!url) return;
+      const identified = await getIdentifiedMember();
+      const gross = snapshot.reduce((s, e) => s + (e.score || 0), 0);
+      const putts = snapshot.reduce((s, e) => s + (e.putts || 0), 0);
+      const holeCount = snapshot.filter((e) => e.score != null).length;
+      if (holeCount === 0) return; // nothing to broadcast yet
+      const round = {
+        id: roundId,
+        date: startedAt,
+        course_id: course.id,
+        course_name: course.name,
+        holes: snapshot,
+        total_score: gross,
+        total_putts: putts,
+      };
+      const key = `scId::solo::${roundId}`;
+      const priorId = (await AsyncStorage.getItem(key)) || undefined;
+      try {
+        const res = await exportSoloRoundToSheet(url, round, course, identified, priorId);
+        if (res.ok && res.scorecard_id) {
+          await AsyncStorage.setItem(key, res.scorecard_id);
+        }
+      } catch {
+        // Silent — leaderboard resyncs on the next hole
+      }
+    },
+    [course, roundId, startedAt],
   );
 
   const holeInfo = useMemo(() => {
@@ -134,6 +185,8 @@ export default function RoundScreen() {
     const nh = currentHole + 1;
     setCurrentHole(nh);
     persist(entries, nh);
+    // Fire-and-forget live sync so the leaderboard sees in-progress rounds
+    syncLiveScorecard(entries);
   };
 
   const finishRound = async () => {
@@ -143,8 +196,8 @@ export default function RoundScreen() {
     const totalScore = entries.reduce((s, e) => s + (e.score || 0), 0);
     const totalPutts = entries.reduce((s, e) => s + (e.putts || 0), 0);
     const finished = {
-      id: `${Date.now()}`,
-      date: new Date().toISOString(),
+      id: roundId || `${Date.now()}`,
+      date: startedAt || new Date().toISOString(),
       course_id: course.id,
       course_name: course.name,
       holes: entries,
@@ -164,6 +217,8 @@ export default function RoundScreen() {
     } catch {
       // Ignore: offline is fine, we already saved locally
     }
+    // One last leaderboard push with the final row
+    syncLiveScorecard(entries);
     await clearActiveRound();
     setFinishing(false);
     router.replace({ pathname: "/summary", params: { id: finished.id } });
