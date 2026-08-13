@@ -190,6 +190,19 @@ export default function HomeScreen() {
           <Ionicons name="trophy" size={20} color={colors.onSurface} />
           <Text style={styles.leaderboardBtnText}>LIVE LEADERBOARD</Text>
         </Pressable>
+        <Pressable
+          testID="player-profile-button"
+          onPress={() => router.push("/profile")}
+          style={({ pressed }) => [styles.profileBtn, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="person-circle" size={20} color={colors.brand} />
+          <Text style={styles.profileBtnText} numberOfLines={1}>
+            {identity
+              ? `${identity.first_name} ${identity.last_name}`.trim().toUpperCase() || `#${identity.member_id}`
+              : "SIGN IN AS A PLAYER"}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.brand} />
+        </Pressable>
       </SafeAreaView>
     </View>
   );
@@ -344,5 +357,24 @@ const styles = StyleSheet.create({
     fontFamily: typography.textBold,
     fontSize: 14,
     letterSpacing: 1.2,
+  },
+  profileBtn: {
+    marginTop: spacing.sm,
+    height: 52,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: spacing.xl,
+  },
+  profileBtnText: {
+    flex: 1,
+    textAlign: "center",
+    color: colors.brand,
+    fontFamily: typography.textBold,
+    fontSize: 13,
+    letterSpacing: 1,
   },
 });
