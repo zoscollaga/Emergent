@@ -116,7 +116,7 @@ export default function CoursesScreen() {
         <View style={styles.center}>
           <Ionicons name="lock-closed" size={28} color={colors.borderStrong} />
           <Text style={styles.hint}>
-            A round is in progress. Finish or cancel it before changing course.
+            A round is in progress. Finish it or cancel it before changing course.
           </Text>
           <Pressable
             onPress={() => router.replace("/round")}
@@ -124,6 +124,19 @@ export default function CoursesScreen() {
             style={styles.primaryBtn}
           >
             <Text style={styles.primaryBtnText}>Return to round</Text>
+          </Pressable>
+          <Pressable
+            onPress={async () => {
+              await clearActiveRound();
+              setLocked(false);
+              // Reload courses now that we've cleared the block
+              load();
+            }}
+            testID="courses-cancel-round"
+            style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.error} />
+            <Text style={styles.cancelBtnText}>Cancel round</Text>
           </Pressable>
         </View>
       ) : (
@@ -276,6 +289,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandPrimary,
   },
   primaryBtnText: { color: colors.onBrandPrimary, fontFamily: typography.textBold },
+  cancelBtn: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.error,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cancelBtnText: {
+    color: colors.error,
+    fontFamily: typography.textBold,
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,

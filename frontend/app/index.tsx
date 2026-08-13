@@ -10,6 +10,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   IdentifiedMember,
   StoredCourse,
+  clearActiveRound,
   getActiveRound,
   getIdentifiedMember,
   getSelectedCourse,
@@ -148,6 +149,19 @@ export default function HomeScreen() {
               <Ionicons name="lock-closed" size={16} color="rgba(255,255,255,0.7)" />
             )}
           </Pressable>
+          {roundActive && (
+            <Pressable
+              onPress={async () => {
+                await clearActiveRound();
+                refresh();
+              }}
+              testID="cancel-active-round-button"
+              style={({ pressed }) => [styles.cancelChip, pressed && { opacity: 0.75 }]}
+            >
+              <Ionicons name="trash-outline" size={12} color="#FCA5A5" />
+              <Text style={styles.cancelChipText}>Cancel round</Text>
+            </Pressable>
+          )}
         </SafeAreaView>
       </View>
 
@@ -230,6 +244,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
     paddingRight: 4,
+  },
+  cancelChip: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(220,38,38,0.15)",
+  },
+  cancelChipText: {
+    color: "#FCA5A5",
+    fontFamily: typography.textBold,
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
   courseName: {
     color: colors.onBrandSecondary,
