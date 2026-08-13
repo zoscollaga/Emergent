@@ -8,6 +8,7 @@ export type LeaderboardRow = {
   scorecard_id: string;
   player_name: string;
   member_id: string;
+  marker_id: string;
   course: string;
   gross_score: number;
   handicap: number | null;
@@ -75,6 +76,7 @@ function normaliseRow(r: any): LeaderboardRow {
     scorecard_id: String(r?.scorecard_id ?? r?.["Scorecard ID"] ?? "").trim(),
     player_name: String(r?.player_name ?? r?.["Player Name"] ?? "").trim(),
     member_id: String(r?.member_id ?? r?.["Member ID"] ?? "").trim(),
+    marker_id: String(r?.marker_id ?? r?.["Marker ID"] ?? "").trim(),
     course: String(r?.course ?? r?.Course ?? "").trim(),
     gross_score: gross,
     handicap,

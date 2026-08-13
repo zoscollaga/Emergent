@@ -163,6 +163,7 @@ export default function PairSummary() {
       scorecardId: priorId || undefined,
       playerName,
       memberId: partner.member_id,
+      markerId: me?.member_id ?? "",
       startedAt: session.started_at,
       courseName: session.course_name,
       grossScore: partnerCard.total_score,

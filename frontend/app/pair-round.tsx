@@ -94,6 +94,7 @@ export default function PairRoundScreen() {
         scorecardId: priorId,
         playerName,
         memberId: partner.member_id,
+        markerId: me.member_id,
         startedAt: s.started_at,
         courseName: s.course_name,
         grossScore: totalScore,

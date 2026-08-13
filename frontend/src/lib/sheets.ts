@@ -2,7 +2,7 @@ import { FinishedRound, IdentifiedMember, StoredCourse } from "./storage";
 
 /**
  * Canonical Scorecards column order (spec):
- *   Scorecard ID, Player Name, Member ID, Date, Course, Gross Score,
+ *   Scorecard ID, Player Name, Member ID, Marker ID, Date, Course, Gross Score,
  *   Handicap, Net Score, Total Putts, H1 Score, H1 Putts, ... H18 Score, H18 Putts
  */
 export function buildScorecardsHeader(): string[] {
@@ -10,6 +10,7 @@ export function buildScorecardsHeader(): string[] {
     "Scorecard ID",
     "Player Name",
     "Member ID",
+    "Marker ID",
     "Date",
     "Course",
     "Gross Score",
@@ -55,6 +56,7 @@ export function buildPlayerCsv(payload: {
   scorecardId?: string;
   playerName: string;
   memberId: string;
+  markerId?: string;
   startedAt: string;
   courseName: string;
   grossScore: number;
@@ -69,6 +71,7 @@ export function buildPlayerCsv(payload: {
     payload.scorecardId ?? "",
     payload.playerName,
     payload.memberId,
+    payload.markerId ?? "",
     formatLocalDate(payload.startedAt),
     payload.courseName,
     payload.grossScore,
