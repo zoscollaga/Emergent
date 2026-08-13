@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only regression test of the 'course chip lock' fix. Case 1 (fresh state → unlocked) PASSES. Case 2 (visit /round then back without scoring → should stay unlocked) FAILS — the chip is still locked. Root cause: round.tsx auto-fills hole 1 with score=par & putts=2 in a useEffect the moment the round screen mounts and calls persist(), so the new 'any hole with non-null score/putts' check in index.tsx and courses.tsx trips immediately, exactly reproducing the originally reported UX bug. Cases 3 & 4 not fully re-validated because they build on a broken premise — Case 3 would trivially pass and Case 4 (clearActiveRound on pick) logic in courses.tsx looks correct in code. The fix as-shipped does NOT resolve the user-reported bug.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HomeScreen course-picker-chip / round.tsx auto-fill effect",
+        "issue": "After ONLY visiting /round and closing (no stepper taps, no Next Hole), the chip on Home is still shown as locked ('locked while a round is in progress' + padlock icon). Storage inspection confirms activeRound.entries[0] = {number:1, score:4, putts:2} was persisted purely by the auto-fill useEffect in /app/frontend/app/round.tsx (lines ~145-159), so index.tsx's new check entries.some(e=>e.score!=null||e.putts!=null) returns true. The fix in index.tsx / courses.tsx is correct in intent but insufficient because round.tsx still auto-persists defaults before the user has actually scored anything. Reference: /app/frontend/app/round.tsx:145-159 and /app/frontend/app/index.tsx:68-70.",
+        "testID": "course-picker-chip",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Home → Start Round Solo → Back → Home / Courses",
+        "issue": "Round screen auto-fills score=par & putts=2 on mount and persists via setActiveRound, defeating the lock guard on the Home chip and the Courses picker. /courses will also show the 'A round is in progress' resume screen prematurely after a mere visit-and-back (I did not re-verify /courses after this state because the visible-chip evidence is sufficient; the code path is identical).",
+        "affected_testIDs": ["course-picker-chip", "courses-resume-round", "start-round-solo-button", "round-close-button"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Do NOT persist the auto-filled defaults in /app/frontend/app/round.tsx. Either (a) render score=par / putts=2 purely as display placeholders and only write them to activeRound.entries once the user taps a stepper (score-plus/minus, putts-plus/minus) or Next Hole, OR (b) add a separate boolean flag per hole (e.g. entry.touched) that only flips true on real user interaction, and have index.tsx / courses.tsx check that flag instead of score/putts non-null.",
+    "After fixing, re-run Case 2 to confirm the chip stays unlocked after a round-screen visit with no scoring, then re-run Case 3 to confirm scoring (real stepper tap) properly locks, and re-run Case 4 (course pick clears stale ActiveRound) end-to-end.",
+    "Optional: add explicit `data-testid` uniqueness — two DOM nodes with testID 'course-picker-chip' are present after Expo-Router transitions (one from the stale previous render). Consider unmounting cleanly so tests don't need to inspect nth element."
+  ],
+  "critical_code_review_comments": [
+    "round.tsx auto-fill useEffect (lines ~145-159) violates the invariant the lock logic in index.tsx / courses.tsx now assumes — that a non-null score/putts on any entry means the user scored. Any consumer of activeRound.entries that treats non-null as 'user progress' is now wrong.",
+    "Consider extracting the 'has user scored' predicate into a shared helper (e.g. hasUserProgress(active)) in src/lib/storage.ts so future consumers stay consistent."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per request)", "frontend": "25% (1 of 4 cases fully passing; Case 2 fails and blocks the rest)"},
+  "seed_data_creation": "None. Test used a clean localStorage; app auto-seeds Keilor course on first launch.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reproduce: open http://localhost:3000 in mobile viewport (390x844), clear localStorage, reload, tap start-round-solo-button, wait ~800ms for the auto-fill effect to run, tap round-close-button, then read localStorage['gs.activeRound'] — entries[0] will already have score=par, putts=2. That is why the Home chip appears locked. The fix must prevent this auto-persistence, not only tighten the check.",
+  "rca_of_issue": "Reported bug: chip was locked because merely visiting /round created an ActiveRound record. Applied fix: index.tsx and courses.tsx now require entries.some(e => e.score!=null || e.putts!=null) before locking. Remaining defect: round.tsx still auto-fills hole 1 (score=par, putts=2) and calls persist() inside a useEffect that runs on mount as soon as `ready` flips true. That write makes entries[0].score and entries[0].putts non-null even when the user does nothing, so the new 'any hole scored' check still returns true and the chip locks. Mitigation: gate the persist call behind a user-interaction flag, or don't persist defaults at all (render them, commit on user action)."
+}

@@ -141,7 +141,10 @@ export default function RoundScreen() {
   );
 
   // Auto-fill defaults (score = par, putts = 2) the FIRST time a hole is opened.
-  // Preserves any values the user has already entered.
+  // The defaults are held in local component state only — they are NOT persisted
+  // to the ActiveRound until the user takes an explicit action (stepper +/- or
+  // Next Hole). This keeps a merely-opened round from flipping the "in progress"
+  // lock on the Home / Courses screens.
   useEffect(() => {
     if (!ready || !holeInfo || !entry) return;
     if (entry.score != null && entry.putts != null) return;
@@ -155,8 +158,8 @@ export default function RoundScreen() {
         : e,
     );
     setEntries(updated);
-    persist(updated, currentHole);
-  }, [ready, currentHole, holeInfo, entry, entries, persist]);
+    // No persist() here on purpose — see comment above.
+  }, [ready, currentHole, holeInfo, entry, entries]);
 
   const updateField = (field: "score" | "putts", delta: number) => {
     if (!entry) return;

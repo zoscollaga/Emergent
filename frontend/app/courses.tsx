@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import {
+  clearActiveRound,
   getActiveRound,
   getSelectedCourse,
   getWebhookUrl,
@@ -35,9 +36,11 @@ export default function CoursesScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // Block picking while a round is in progress
+    // Block picking only if a round is actually in progress (i.e. at least one
+    // hole scored). Just having navigated to /round without scoring is fine.
     const active = await getActiveRound();
-    if (active) {
+    const hasScoredHole = active?.entries.some((e) => e.score != null || e.putts != null) ?? false;
+    if (hasScoredHole) {
       setLocked(true);
       setLoading(false);
       return;
@@ -85,6 +88,8 @@ export default function CoursesScreen() {
         holes: c.holes,
       };
       await setSelectedCourse(stored);
+      // Wipe any stale (unscored) active round so the next round uses this course.
+      await clearActiveRound();
       setSelectedId(c.id);
       router.back();
     } finally {

@@ -62,7 +62,12 @@ export default function HomeScreen() {
       setCourse(cached);
     }
     setIdentity(await getIdentifiedMember());
-    setRoundActive(!!(await getActiveRound()));
+    // Only treat a round as "in progress" once the player has actually scored a
+    // hole. Merely opening the round screen (which auto-creates an ActiveRound
+    // shell) shouldn't lock the course picker.
+    const active = await getActiveRound();
+    const hasScoredHole = active?.entries.some((e) => e.score != null || e.putts != null) ?? false;
+    setRoundActive(hasScoredHole);
   }, []);
 
   useEffect(() => {
