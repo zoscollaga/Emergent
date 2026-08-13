@@ -50,7 +50,19 @@ export async function fetchLeaderboard(
       return { ok: false, status: res.status, message: String(data.error) };
     }
     const raw: any[] = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-    const rows: LeaderboardRow[] = raw.map((r) => normaliseRow(r));
+    const rows: LeaderboardRow[] = raw
+      .map((r) => normaliseRow(r))
+      // Skip rows that look corrupted (column-shift from a schema change on the
+      // sheet where the header wasn't rewritten). Signals:
+      //  - `course` is purely numeric (a Gross/HCP value slid over)
+      //  - `player_name` is purely numeric (a Member ID slid into Name)
+      //  - Both name and member_id empty
+      .filter((r) => {
+        if (!r.player_name && !r.member_id) return false;
+        if (/^\d+(\.\d+)?$/.test(r.course)) return false;
+        if (r.player_name && /^\d+$/.test(r.player_name.trim())) return false;
+        return true;
+      });
     return { ok: true, date: isoDate, rows };
   } catch (e: any) {
     return { ok: false, status: 0, message: String(e?.message || e) };

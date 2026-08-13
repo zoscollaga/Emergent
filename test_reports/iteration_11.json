@@ -1,0 +1,43 @@
+{
+  "summary": "Verified leaderboard corrupted-row filter fix via Playwright with a mocked Google Apps Script response (page.route intercepts script.google.com/**?action=leaderboard*). All 21 assertions passed: corrupted rows are filtered, numeric course chips are hidden, Moonah Links filter works, and 2BBB shows the empty state.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/leaderboard_moonah.png",
+    "/tmp/leaderboard_2bbb.png"
+  ],
+  "action_items": [
+    "Fix upstream root cause: sync the Apps Script header row with the new 'Marker ID' column and add marker_id to the leaderboard JSON so 2BBB pairing works.",
+    "Consider prompting/logging when the client filter drops rows (corruption telemetry) so this stays visible."
+  ],
+  "critical_code_review_comments": [
+    "leaderboard.ts filter is robust for the three documented corruption signals (empty name+id, numeric course, numeric name).",
+    "availableCourses in leaderboard.tsx skips numeric strings — chip row is guaranteed clean.",
+    "buildTeams requires mutual marker_id pairing and matching course, so any un-paired surviving row correctly produces the empty state."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "seed_data_creation": "No persistent seed. Playwright page.route mocks the leaderboard endpoint per test run with 5 rows (2 valid, 3 corrupted).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live Apps Script currently misconfigured (header not in sync, no marker_id field). Always mock script.google.com/**?action=leaderboard* via page.route when testing /leaderboard. Names are shortened by shortName() -> 'Alex Lee' renders as 'Alex L.' and 'Zos Collaga' as 'Zos C.'. Row testIDs: leaderboard-row-<member_id>. Chip testIDs: course-filter-<course_name> and course-filter-all. Mode toggles: mode-individual, mode-2bbb.",
+  "rca_of_issue": "Google Sheet rows are column-shifted because a 'Marker ID' column was added without updating the Apps Script header. That caused Member ID to slide into the Name column and Gross/HCP values (e.g. 70, 73, 74) to slide into the Course column. The frontend fix is a defensive normalise-and-drop pass in fetchLeaderboard (drop rows with empty name+id, numeric course, or numeric name) plus a numeric-guard in availableCourses. 2BBB is intentionally empty until the Apps Script starts returning marker_id.",
+  "verifications_performed": [
+    "Alex L. and Zos C. rendered as the only ranked rows",
+    "Dylan Collaga (course='70') filtered out",
+    "leaderboard-row-5601 absent from DOM",
+    "Row with player_name='2327' filtered out (no numeric player-name text rendered as display name)",
+    "Fully-blank row filtered out",
+    "Course chips: 'All courses', 'Keilor Golf Course', 'Moonah Links' — exactly 3, no numeric chips",
+    "Tapping 'Moonah Links' reduces list to only Alex L.",
+    "'2 Ball Better Ball' shows 'No pairs playing this course yet.' with zero team rows"
+  ]
+}

@@ -123,10 +123,16 @@ export default function LeaderboardScreen() {
   const dateLabel = formatDateLabel(date);
   const lastUpdatedLabel = lastUpdated ? formatClock(new Date(lastUpdated)) : "\u2014";
 
-  // Unique course names seen today (for the filter chip row)
+  // Unique course names seen today (for the filter chip row). Guard against
+  // numeric-looking values that can appear when a row is column-shifted.
   const availableCourses = useMemo(() => {
     const set = new Set<string>();
-    rows.forEach((r) => r.course && set.add(r.course));
+    rows.forEach((r) => {
+      const c = (r.course || "").trim();
+      if (!c) return;
+      if (/^\d+(\.\d+)?$/.test(c)) return;
+      set.add(c);
+    });
     return Array.from(set).sort();
   }, [rows]);
 
