@@ -189,9 +189,28 @@ export async function clearWebhookUrl() {
   await AsyncStorage.removeItem(K_SHEETS_WEBHOOK);
   await AsyncStorage.removeItem(K_MEMBERS_WEBHOOK);
 }
+const K_SC_ID_COUNTER = "gs.scIdCounter";
+
 /** Non-null "default" URL shipped with the app (or empty string). */
 export function getDefaultWebhookUrl(): string {
   return (process.env.EXPO_PUBLIC_WEBHOOK_URL || "").trim();
+}
+
+/**
+ * Allocate a new, unique Scorecard ID in the format `SCYYYYMMDDNNN` (no hyphens).
+ * NNN is a per-date counter kept in AsyncStorage so multiple rounds on the same
+ * day by the same player never collide. Idempotent per counter increment.
+ */
+export async function allocateScorecardId(iso: string): Promise<string> {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePart = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const key = `${K_SC_ID_COUNTER}::${datePart}`;
+  const raw = await AsyncStorage.getItem(key);
+  const prev = raw ? parseInt(raw, 10) || 0 : 0;
+  const next = prev + 1;
+  await AsyncStorage.setItem(key, String(next));
+  return `SC${datePart}${String(next).padStart(3, "0")}`;
 }
 /** Returns just the device override (nothing when only the shipped default is used). */
 export async function getWebhookOverride(): Promise<string | null> {

@@ -1,0 +1,75 @@
+{
+  "summary": "Verified the Scorecard ID allocation bug fix end-to-end via Playwright (mobile viewport, Expo web preview). All 4 test cases PASSED. Format is hyphen-free `SC{YYYYMMDD}{NNN}`, per-date counter is monotonically increasing across new rounds, and resumed rounds preserve their original id. Two same-day rounds no longer collide.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_results": {
+    "test_1_format_and_uniqueness": {
+      "status": "PASS",
+      "observed_id": "SC20260813001",
+      "regex_match_SC_YYYYMMDD_NNN": true,
+      "length_13": true,
+      "no_hyphens": true,
+      "date_matches_today_YYYYMMDD": "20260813",
+      "posts_captured": 2,
+      "note": "Both live-sync POSTs for the same round carried the SAME id (correct upsert behaviour)."
+    },
+    "test_2_two_rounds_same_day_distinct": {
+      "status": "PASS",
+      "t1_id": "SC20260813001",
+      "t2_id": "SC20260813002",
+      "regex_match": true,
+      "date_part_same": true,
+      "counter_strictly_greater": "002 > 001",
+      "different_from_t1": true
+    },
+    "test_3_asyncstorage_state": {
+      "status": "PASS",
+      "gs.scIdCounter::YYYYMMDD": "2 (after Test 2), 3 (after Test 4)",
+      "scId::solo::* keys": {
+        "count_after_test2": 2,
+        "all_distinct": true,
+        "all_regex_matched": true
+      }
+    },
+    "test_4_resume_does_not_reallocate": {
+      "status": "PASS",
+      "id_before_reload": "SC20260813003",
+      "id_after_reload_same_round": "SC20260813003",
+      "identical": true,
+      "note": "page.reload() + re-navigation to /round preserved the cached scId; no new allocation."
+    },
+    "final_storage_snapshot": {
+      "gs.scIdCounter::20260813": "3",
+      "scId::solo::1786660117849": "SC20260813001",
+      "scId::solo::1786660122548": "SC20260813002",
+      "scId::solo::1786660125827": "SC20260813003"
+    }
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_14.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "storage.ts:allocateScorecardId — read-modify-write on AsyncStorage is not atomic. In the current app the only callers are sequential (round-start, pair-start), so this is fine in practice. If ever two rounds are started concurrently on the same device, two callers could read the same `prev` and both write the same counter, yielding a duplicate id. Consider a mutex/queue if concurrent allocation becomes possible.",
+    "sheets.ts line 54 comment is slightly stale: it says the Apps Script assigns `SC-YYYYMMDD-NNN`. Since the client now always allocates and sends the id (hyphen-free), the comment should be updated to reflect that server-side assignment is only a fallback.",
+    "round.tsx: `syncLiveScorecard` still overwrites the cached scId with `res.scorecard_id` if the server echoes a non-empty value. Because the client now pre-allocates and sends its own id, the Apps Script should always echo the SAME id back — but if a legacy/misconfigured Apps Script returned a different id, the client would silently switch to it. Consider only accepting the server id when `priorId` is missing."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only test as requested)",
+    "frontend": "100% (4/4 scorecard-id tests passed)"
+  },
+  "seed_data_creation": "None. Tests intercept POSTs to script.google.com and return {ok:true,scorecard_id:''} to avoid touching the real Google Sheet.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug fix verified. `allocateScorecardId` in /app/frontend/src/lib/storage.ts + round-start block in /app/frontend/app/round.tsx now guarantee a hyphen-free `SC{YYYYMMDD}{NNN}` id, unique per round on the same day. Live-sync POST always carries the id in column A of the CSV. Backend Apps Script changes (upsert by Scorecard ID rather than Member ID) are the responsibility of the user — not tested here.",
+  "rca_of_issue": "Original bug: two same-day rounds got similar server-assigned scorecard ids and the Apps Script upserted by Member ID, so round #2 overwrote round #1. Fix (verified): client now pre-allocates a unique `SC{YYYYMMDD}{NNN}` id via `allocateScorecardId(startIso)` at round start, persists it under `scId::solo::${roundId}`, and includes it in the FIRST live-sync POST. Per-date counter lives in AsyncStorage under `gs.scIdCounter::YYYYMMDD` and is atomic-per-caller (see code review note about concurrent starts). Resumed rounds reuse the cached id — no new allocation on reload."
+}

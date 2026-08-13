@@ -16,6 +16,7 @@ import {
   ActiveRound,
   HoleEntry,
   StoredCourse,
+  allocateScorecardId,
   clearActiveRound,
   getActiveRound,
   getIdentifiedMember,
@@ -68,6 +69,10 @@ export default function RoundScreen() {
           startedAt: startIso,
         };
         await setActiveRound(fresh);
+        // Pre-allocate a hyphen-free Scorecard ID (SCYYYYMMDDNNN) so two rounds
+        // on the same day never share an id and never overwrite each other.
+        const scId = await allocateScorecardId(startIso);
+        await AsyncStorage.setItem(`scId::solo::${newId}`, scId);
         setCourse(c);
         setEntries(initial);
         setCurrentHole(1);
