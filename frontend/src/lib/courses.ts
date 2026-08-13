@@ -89,14 +89,45 @@ export async function addCourse(
         status: res.status,
         message: `A course named "${data.match_name || input.name}" already exists.`,
       };
-    const course = normaliseCourse(data.course);
-    if (!course)
-      return {
-        ok: false,
-        status: res.status,
-        message: "Course saved but response missing course object.",
+
+    // Prefer the full course object echoed by the server. If the server only
+    // returns an id / ok:true (older Apps Script versions), rebuild the
+    // CourseRow from what we just posted so the app still moves forward.
+    const serverCourse = normaliseCourse(data.course);
+    if (serverCourse) return { ok: true, course: serverCourse };
+
+    const echoedId = String(
+      data?.course_id ?? data?.id ?? data?.["Course ID"] ?? "",
+    ).trim();
+    const savedByServer =
+      data?.ok === true ||
+      data?.success === true ||
+      data?.saved === true ||
+      !!echoedId;
+    if (savedByServer) {
+      const fallback: CourseRow = {
+        id: echoedId || `course-${Date.now()}`,
+        name: input.name.trim(),
+        latitude: input.latitude ?? 0,
+        longitude: input.longitude ?? 0,
+        holes: input.holes.map((h) => ({
+          number: h.number,
+          par: h.par,
+          distance: h.distance,
+          index: h.index,
+        })),
+        status: "Active",
       };
-    return { ok: true, course };
+      return { ok: true, course: fallback };
+    }
+
+    return {
+      ok: false,
+      status: res.status,
+      message:
+        "Web App did not confirm the save. Check the Courses tab in your Google Sheet — the course may still have been added. Reply from server: " +
+        text.slice(0, 160),
+    };
   } catch (e: any) {
     return { ok: false, status: 0, message: String(e?.message || e) };
   }

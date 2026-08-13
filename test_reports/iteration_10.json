@@ -1,0 +1,23 @@
+{
+  "summary": "Verified the bug fix for the /add-course SAVE COURSE flow (fix in /app/frontend/src/lib/courses.ts). Used Playwright with page.route to intercept POST to script.google.com and inject 6 different response shapes. All 6 scenarios behaved as specified: (a) full {course:{...}} echo → navigated to home; (b) {ok:true,course_id:'77777'} → navigated to home (fallback path); (c) {ok:true} only → navigated to home (full fallback); (d) {duplicate:true,match_name:...} → error banner 'A course named \"Test Course\" already exists.'; (e) {error:'Missing name'} → error banner 'Missing name'; (f) {} → error banner 'Web App did not confirm the save. Check the Courses tab in your Google Sheet — the course may still have been added. Reply from server: {}'. The OLD error message 'Course saved but response missing course object.' was NEVER shown for any of the success shapes (a/b/c). Frontend only testing as requested. No backend testing was performed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_10.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "courses.ts addCourse: fix logic is well-scoped and returns clear messages for each shape (full course / minimal ack / duplicate / server error / empty). The fallback that reconstructs CourseRow from the posted payload is a sensible short-term fix; the id will be a client-generated 'course-<ts>' when the server returns {ok:true} only, so the next fetchCourses() call may still be authoritative source of truth for the id.",
+    "add-course.tsx: on success uses router.replace('/') (home) rather than router.back() to /courses; matches request spec ('navigate away from /add-course to home') so no change needed, but be aware the /courses list will not auto-refresh unless it refetches on focus."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested)", "frontend": "100% (6/6 scenarios)"},
+  "seed_data_creation": "None. All Apps Script responses were mocked in-browser via Playwright page.route.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The add-course flow requires setting EXPO_PUBLIC_WEBHOOK_URL in /app/frontend/.env (already set). Because the app uses fetch({redirect:'follow'}) to script.google.com, Playwright mocking works by fulfilling the initial request — no need to follow the real Apps Script redirect. Use handler signature `async def handler(route, request)` — DO NOT use default kwargs for closure capture, Playwright injects `request` as the 2nd positional arg. Fill all 18 holes (par/distance/index) with unique index values 1..18 to satisfy client-side validation before SAVE COURSE becomes actionable.",
+  "rca_of_issue": "Original bug: /add-course showed 'Course saved but response missing course object.' whenever the Apps Script webhook returned success without echoing the full course object (e.g. {ok:true} or {course_id:'...'}). Root cause: the client only accepted the {course:{...}} success shape and treated all other 2xx bodies as failure. Fix in courses.ts addCourse: after ruling out data.error and data.duplicate, first attempt to normalise data.course; if that fails, look for data.course_id / data.id / 'Course ID' and treat data.ok===true || data.success===true || data.saved===true || !!id as a successful ack, reconstructing the CourseRow from the posted input so navigation to home can proceed. The residual empty-body case now returns a clearer 'Web App did not confirm the save…' message with a snippet of the raw response instead of the old misleading text. Verified end-to-end for all 6 response shapes."
+}
