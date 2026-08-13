@@ -15,7 +15,10 @@ import { useRouter } from "expo-router";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { fetchMembers, Member } from "@/src/lib/members";
 import {
+  clearWebhookUrl,
+  getDefaultWebhookUrl,
   getIdentifiedMember,
+  getWebhookOverride,
   getWebhookUrl,
   setIdentifiedMember,
 } from "@/src/lib/storage";
@@ -23,6 +26,8 @@ import {
 export default function IdentifyScreen() {
   const router = useRouter();
   const [webhook, setWebhook] = useState<string | null>(null);
+  const [webhookOverride, setWebhookOverrideState] = useState<string | null>(null);
+  const [defaultWebhook, setDefaultWebhook] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
@@ -32,7 +37,11 @@ export default function IdentifyScreen() {
 
   const load = useCallback(async () => {
     const url = await getWebhookUrl();
+    const override = await getWebhookOverride();
+    const def = getDefaultWebhookUrl();
     setWebhook(url);
+    setWebhookOverrideState(override);
+    setDefaultWebhook(def);
     const identified = await getIdentifiedMember();
     setCurrentId(identified?.member_id || null);
     if (!url) {
@@ -59,11 +68,13 @@ export default function IdentifyScreen() {
       let hint: string | undefined;
       if (res.status === 0) {
         message = "Network error.";
-        hint = "Check your internet connection and the Members webhook URL.";
+        hint = "Check your internet connection and open Home \u2192 \u2699\ufe0f Settings to verify the Web App URL.";
       } else if (res.status === 404) {
-        hint = "Open Apps Script → Deploy → Manage deployments and copy the current /exec URL.";
+        hint = override
+          ? "This device has a custom Web App URL saved that no longer works. Tap 'Use club default' below to reset it, or open Settings to paste a fresh /exec URL."
+          : "The Web App URL isn't reachable. Open Home \u2192 \u2699\ufe0f Settings to paste a fresh /exec URL (from Apps Script \u2192 Deploy \u2192 Manage deployments).";
       } else if (res.status === 401 || res.status === 403) {
-        hint = "Deployment access must be set to Anyone.";
+        hint = "Deployment access must be set to Anyone. Update it in Apps Script and redeploy.";
       }
       setError({ message, hint });
     }
@@ -142,9 +153,30 @@ export default function IdentifyScreen() {
           <Ionicons name="alert-circle" size={28} color={colors.error} />
           <Text style={styles.errorText}>{error.message}</Text>
           {error.hint && <Text style={styles.errorHint}>{error.hint}</Text>}
-          <Pressable onPress={load} style={styles.primaryBtn} testID="identify-retry">
-            <Text style={styles.primaryBtnText}>Retry</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: spacing.md, flexWrap: "wrap", justifyContent: "center" }}>
+            {webhookOverride && defaultWebhook && webhookOverride !== defaultWebhook && (
+              <Pressable
+                onPress={async () => {
+                  await clearWebhookUrl();
+                  load();
+                }}
+                testID="identify-use-default"
+                style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Text style={styles.primaryBtnText}>Use club default</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => router.push("/settings")}
+              testID="identify-open-settings"
+              style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.secondaryBtnText}>Open Settings</Text>
+            </Pressable>
+            <Pressable onPress={load} style={styles.secondaryBtn} testID="identify-retry">
+              <Text style={styles.secondaryBtnText}>Retry</Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <>
@@ -306,6 +338,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   primaryBtnText: { color: colors.onBrandPrimary, fontFamily: typography.textBold },
+  secondaryBtn: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  secondaryBtnText: { color: colors.onSurface, fontFamily: typography.textBold },
   row: {
     flexDirection: "row",
     alignItems: "center",
