@@ -1,0 +1,30 @@
+{
+  "summary": "Verified both leaderboard fixes on /leaderboard. TEST 1 passed: mode-2bbb button now reads exactly '2BBB' (no longer '2 Ball Better Ball'); mode-individual still reads 'Individual'. TEST 2 passed: with a mocked webhook returning 10 rows (valid mutual pair on Keilor, valid mutual pair on Moonah, plus solo/one-sided/self-marking/cross-course garbage), the 2BBB view renders EXACTLY 2 team rows with testIDs leaderboard-team-1000::1001 (Alex/Ben, Keilor) and leaderboard-team-1008::1009 (Ivy/Jay, Moonah). Cara D (no marker), Dan H/Eve K (one-sided), Fred M (self-marking), and Greg P/Hank R (different courses) are correctly excluded. Filtering by 'Moonah Links' collapses to 1 team (Ivy/Jay); 'All courses' brings both back. TEST 3 passed: switching to Individual view renders all 10 rows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_16.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "buildTeams in /app/frontend/app/leaderboard.tsx correctly enforces all five gates: member_id present, marker_id present, non-self-marking, partner exists in the byMember map with matching mutual marker_id, and same course. The seen-set keyed on sorted [member_id, marker_id] guarantees each mutual pair emits exactly one TeamRow.",
+    "SegmentButton for 2BBB now uses label='2BBB' while retaining testID='mode-2bbb', so downstream tests that key on the testID stay stable.",
+    "Course filter chip testIDs are derived from the raw course name (e.g. 'course-filter-Moonah Links'), which works but includes a space; consider slugifying if strict CSS-selector safety is ever needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "seed_data_creation": "No persistent seed data. The test mocks GET https://script.google.com/**?action=leaderboard&date=<TODAY> with the 10-row payload from the review request via page.route.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The leaderboard screen uses a stored/default EXPO_PUBLIC_WEBHOOK_URL that points at script.google.com. Mocking with page.route('**script.google.com/**', ...) is sufficient to control fetchLeaderboard(). Team rows use testID `leaderboard-team-{sorted member_ids joined by ::}`; individual rows use `leaderboard-row-{member_id}`. Course filter chips use `course-filter-{raw course name}` and `course-filter-all`.",
+  "detailed_test_results": {
+    "test1_button_label": {"status": "PASS", "notes": "mode-2bbb text == '2BBB' (case-sensitive); mode-individual text == 'Individual'."},
+    "test2_teams_all_courses": {"status": "PASS", "notes": "Exactly 2 team rows: leaderboard-team-1000::1001 and leaderboard-team-1008::1009. Excluded players (Cara/Dan/Eve/Fred/Greg/Hank) do not appear in any team row text."},
+    "test2_filter_moonah": {"status": "PASS", "notes": "After tapping course-filter-Moonah Links, only leaderboard-team-1008::1009 (Ivy/Jay) is rendered."},
+    "test2_filter_all_again": {"status": "PASS", "notes": "Tapping course-filter-all restores both team rows."},
+    "test3_individual": {"status": "PASS", "notes": "10 leaderboard-row-* elements rendered (all rows survive the corruption filter since courses are valid non-numeric strings)."}
+  }
+}

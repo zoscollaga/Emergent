@@ -212,7 +212,7 @@ export default function LeaderboardScreen() {
           testID="mode-individual"
         />
         <SegmentButton
-          label="2 Ball Better Ball"
+          label="2BBB"
           active={mode === "2bbb"}
           onPress={() => {
             Haptics.selectionAsync().catch(() => {});
@@ -613,11 +613,12 @@ function TeamRowView({
 /* -------------------- Data transforms -------------------- */
 
 /** Build 2BBB team rows from a flat list of scorecards.
- *  A team = pair of members who mark each other. For each pair we compute:
- *  - team gross = sum of MIN(playerA hole, playerB hole) across holes both played
- *  - team net = team_gross - avg(handicap) when both handicaps present
- *  - team putts = sum of both putts
- *  - team thru = holes where BOTH players have a score
+ *  A team is admitted ONLY when we have exactly TWO distinct rows that:
+ *    - both have a member_id AND a marker_id set
+ *    - reference each other (A.marker_id == B.member_id AND vice-versa)
+ *    - are on the same course
+ *  Solo rows (no marker_id) and one-sided pairings are excluded, so the 2BBB
+ *  leaderboard never shows a "team of one".
  */
 function buildTeams(rows: LeaderboardRow[]): TeamRow[] {
   const byMember = new Map<string, LeaderboardRow>();
@@ -627,11 +628,14 @@ function buildTeams(rows: LeaderboardRow[]): TeamRow[] {
   const seen = new Set<string>();
   const teams: TeamRow[] = [];
   for (const r of rows) {
-    if (!r.member_id || !r.marker_id) continue;
+    if (!r.member_id || !r.marker_id) continue;             // must have both ids
+    if (r.member_id === r.marker_id) continue;              // can't mark yourself
     const partner = byMember.get(r.marker_id);
-    // Require mutual pairing (both cite each other) AND same course
-    if (!partner || partner.marker_id !== r.member_id) continue;
-    if (r.course !== partner.course) continue;
+    if (!partner) continue;                                  // partner must exist
+    if (!partner.member_id || !partner.marker_id) continue;  // partner must also have both ids
+    if (partner.marker_id !== r.member_id) continue;         // must be mutual
+    if (partner.member_id === r.member_id) continue;         // truly distinct
+    if (r.course !== partner.course) continue;               // same course only
     const key = [r.member_id, r.marker_id].sort().join("::");
     if (seen.has(key)) continue;
     seen.add(key);
