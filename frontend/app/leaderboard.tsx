@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { getSelectedCourse, getWebhookUrl, StoredCourse } from "@/src/lib/storage";
 import { fetchLeaderboard, LeaderboardRow } from "@/src/lib/leaderboard";
+import { extractPairSessionShort } from "@/src/lib/pair-id";
 
 const REFRESH_MS = 15_000;
 const ALL_COURSES = "__ALL__";
@@ -614,82 +615,162 @@ function TeamRowView({
 /* -------------------- Data transforms -------------------- */
 
 /** Build 2BBB team rows from a flat list of scorecards.
- *  A team is admitted when we have exactly TWO distinct rows that:
- *    - both have a member_id AND a marker_id set
- *    - reference each other (A.marker_id == B.member_id AND vice-versa)
- *    - are on the same course
- *  Solo rows (no marker_id) and one-sided pairings are excluded, so the 2BBB
- *  leaderboard never shows a "team of one".
  *
- *  IDs are normalised (trim + toString) before comparison so that trailing
- *  whitespace or numeric-vs-string mismatches (which happen when the Google
- *  Sheet returns some columns as numbers) never break the pairing on iOS.
+ *  A team is formed when TWO scorecards can be linked as pair partners. We try
+ *  two strategies, in order:
+ *    1. **Pair session hash** (`-2B-<sessionShort>` suffix on scorecard_id) —
+ *       any two rows sharing the same session hash on the same course are a
+ *       pair. Works even when the Google Apps Script doesn't project the
+ *       Marker ID column back to the client.
+ *    2. **Mutual marker_id** (legacy) — for older scorecards that predate the
+ *       pair-session suffix, or when the sheet does surface marker_id.
+ *
+ *  Solo rows and one-sided pairings are excluded, so the 2BBB leaderboard
+ *  never shows a "team of one". Ids are normalised (trim + toString) before
+ *  comparison so trailing whitespace never breaks pairing on iOS.
  */
 function buildTeams(rows: LeaderboardRow[]): TeamRow[] {
-  // Normalise IDs once and index by trimmed string member_id
   const norm = (v: any) => String(v ?? "").trim();
+  const teams: TeamRow[] = [];
+  const usedRowIndices = new Set<number>();
+
+  // ---- Strategy 1: pair-session-hash grouping (suffix "-2B-<hash>") -------
+  const bucketsBySession = new Map<string, number[]>();
+  rows.forEach((r, idx) => {
+    const sess = extractPairSessionShort(r.scorecard_id);
+    if (!sess) return;
+    const bucketKey = `${sess}::${norm(r.course)}`;
+    const arr = bucketsBySession.get(bucketKey) || [];
+    arr.push(idx);
+    bucketsBySession.set(bucketKey, arr);
+  });
+  for (const [, idxs] of bucketsBySession) {
+    if (idxs.length < 2) continue;
+    // Deduplicate to distinct member_ids and take the two most-complete rows.
+    const byMember = new Map<string, number>();
+    for (const i of idxs) {
+      const mid = norm(rows[i].member_id);
+      if (!mid) continue;
+      const existing = byMember.get(mid);
+      if (existing == null || rows[i].holes_played > rows[existing].holes_played) {
+        byMember.set(mid, i);
+      }
+    }
+    const uniqueIdxs = Array.from(byMember.values());
+    if (uniqueIdxs.length < 2) continue;
+    // Pick the two rows with the most holes played (best-effort if >2 rows)
+    uniqueIdxs.sort((a, b) => rows[b].holes_played - rows[a].holes_played);
+    const [ai, bi] = uniqueIdxs;
+    teams.push(makeTeam(rows[ai], rows[bi]));
+    usedRowIndices.add(ai);
+    usedRowIndices.add(bi);
+  }
+
+  // ---- Strategy 2: legacy "-2B" suffix without session hash --------------
+  //  For scorecards emitted by the first version of the pair-id fix (only
+  //  "-2B", no hash), pair them if there are exactly two distinct members
+  //  with a "-2B" row on the same course.
+  const legacyBuckets = new Map<string, number[]>();
+  rows.forEach((r, idx) => {
+    if (usedRowIndices.has(idx)) return;
+    const s = norm(r.scorecard_id);
+    if (!/-2B$/.test(s)) return; // must be legacy "-2B" only (no hash)
+    const bucketKey = norm(r.course);
+    const arr = legacyBuckets.get(bucketKey) || [];
+    arr.push(idx);
+    legacyBuckets.set(bucketKey, arr);
+  });
+  for (const [, idxs] of legacyBuckets) {
+    const byMember = new Map<string, number>();
+    for (const i of idxs) {
+      const mid = norm(rows[i].member_id);
+      if (!mid) continue;
+      const existing = byMember.get(mid);
+      if (existing == null || rows[i].holes_played > rows[existing].holes_played) {
+        byMember.set(mid, i);
+      }
+    }
+    // Only accept as a team when there are EXACTLY two distinct members — any
+    // more is ambiguous (could be two overlapping pairs on the same course).
+    if (byMember.size !== 2) continue;
+    const [ai, bi] = Array.from(byMember.values());
+    teams.push(makeTeam(rows[ai], rows[bi]));
+    usedRowIndices.add(ai);
+    usedRowIndices.add(bi);
+  }
+
+  // ---- Strategy 3: legacy mutual marker_id --------------------------------
   const byMember = new Map<string, LeaderboardRow>();
   rows.forEach((r) => {
     const mid = norm(r.member_id);
     if (mid) byMember.set(mid, r);
   });
   const seen = new Set<string>();
-  const teams: TeamRow[] = [];
-  for (const r of rows) {
+  teams.forEach((t) => {
+    seen.add([norm(t.playerA.member_id), norm(t.playerB.member_id)].sort().join("::"));
+  });
+  for (let i = 0; i < rows.length; i++) {
+    if (usedRowIndices.has(i)) continue;
+    const r = rows[i];
     const rMid = norm(r.member_id);
     const rMkr = norm(r.marker_id);
-    if (!rMid || !rMkr) continue;               // must have both ids
-    if (rMid === rMkr) continue;                // can't mark yourself
+    if (!rMid || !rMkr) continue;
+    if (rMid === rMkr) continue;
     const partner = byMember.get(rMkr);
-    if (!partner) continue;                      // partner must exist
+    if (!partner) continue;
     const pMid = norm(partner.member_id);
     const pMkr = norm(partner.marker_id);
-    if (!pMid || !pMkr) continue;                // partner must also have both ids
-    if (pMkr !== rMid) continue;                 // must be mutual
-    if (pMid === rMid) continue;                 // truly distinct
-    if (norm(r.course) !== norm(partner.course)) continue; // same course only
+    if (!pMid || !pMkr) continue;
+    if (pMkr !== rMid) continue;
+    if (pMid === rMid) continue;
+    if (norm(r.course) !== norm(partner.course)) continue;
     const key = [rMid, rMkr].sort().join("::");
     if (seen.has(key)) continue;
     seen.add(key);
-    const playerA = r;
-    const playerB = partner;
-    let gross = 0;
-    let holes_played = 0;
-    let complete = true;
-    for (let i = 0; i < 18; i++) {
-      const a = playerA.hole_scores[i];
-      const b = playerB.hole_scores[i];
-      if (a != null && b != null) {
-        gross += Math.min(a, b);
-        holes_played++;
-      } else if (a != null || b != null) {
-        // Only one partner has a score — count as played but not complete
-        gross += (a ?? b) as number;
-        holes_played++;
-      } else {
-        complete = false;
-      }
-    }
-    complete = complete && holes_played === 18;
-    const hcpAvg =
-      playerA.handicap != null && playerB.handicap != null
-        ? Math.round((playerA.handicap + playerB.handicap) / 2)
-        : null;
-    const net = hcpAvg == null ? null : gross - hcpAvg;
-    teams.push({
-      key,
-      playerA,
-      playerB,
-      course: r.course,
-      gross_score: gross,
-      net_score: net,
-      handicap: hcpAvg,
-      total_putts: playerA.total_putts + playerB.total_putts,
-      holes_played,
-      complete,
-    });
+    teams.push(makeTeam(r, partner));
   }
+
   return teams;
+}
+
+/** Combine two partner rows into a TeamRow (2BBB = better ball of the two). */
+function makeTeam(playerA: LeaderboardRow, playerB: LeaderboardRow): TeamRow {
+  const norm = (v: any) => String(v ?? "").trim();
+  const key = [norm(playerA.member_id), norm(playerB.member_id)].sort().join("::");
+  let gross = 0;
+  let holes_played = 0;
+  let complete = true;
+  for (let i = 0; i < 18; i++) {
+    const a = playerA.hole_scores[i];
+    const b = playerB.hole_scores[i];
+    if (a != null && b != null) {
+      gross += Math.min(a, b);
+      holes_played++;
+    } else if (a != null || b != null) {
+      gross += (a ?? b) as number;
+      holes_played++;
+    } else {
+      complete = false;
+    }
+  }
+  complete = complete && holes_played === 18;
+  const hcpAvg =
+    playerA.handicap != null && playerB.handicap != null
+      ? Math.round((playerA.handicap + playerB.handicap) / 2)
+      : null;
+  const net = hcpAvg == null ? null : gross - hcpAvg;
+  return {
+    key,
+    playerA,
+    playerB,
+    course: playerA.course,
+    gross_score: gross,
+    net_score: net,
+    handicap: hcpAvg,
+    total_putts: playerA.total_putts + playerB.total_putts,
+    holes_played,
+    complete,
+  };
 }
 
 function compareRows(

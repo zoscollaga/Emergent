@@ -19,6 +19,7 @@ import {
   submitHole,
 } from "@/src/lib/api";
 import { getDeviceId, getIdentifiedMember, getWebhookUrl, allocateScorecardId, IdentifiedMember } from "@/src/lib/storage";
+import { pairSessionShort } from "@/src/lib/pair-id";
 import { fetchMembers, Member } from "@/src/lib/members";
 import {
   buildPlayerCsv,
@@ -253,14 +254,18 @@ export default function PairRoundScreen() {
   // Pre-allocate a unique 2BBB Scorecard ID for the partner's card once per
   // pair session, so both `publishPartnerCard` (live) and pair-summary export
   // reuse the same id and the sheet never overwrites a previous scorecard.
-  // Suffix "-2B" flags the row as a 2BBB pair scorecard in Google Sheets.
+  //
+  // Format: `SCyyyyMMDDNNN-2B-<sessionShort>` — the trailing session hash lets
+  // the leaderboard group the two partner rows into a team even when the
+  // Apps Script `leaderboard` endpoint doesn't project the Marker ID column.
   useEffect(() => {
     if (!session || !partner?.member_id) return;
     const key = `scId::${session.id}::${partner.member_id}`;
     (async () => {
       const existing = await AsyncStorage.getItem(key);
       if (existing) return;
-      const scId = await allocateScorecardId(session.started_at, "-2B");
+      const sessionShort = pairSessionShort(session.id);
+      const scId = await allocateScorecardId(session.started_at, `-2B-${sessionShort}`);
       // Only set if still unassigned to avoid stomping a concurrent set.
       const check = await AsyncStorage.getItem(key);
       if (!check) await AsyncStorage.setItem(key, scId);
