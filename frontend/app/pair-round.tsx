@@ -61,6 +61,10 @@ export default function PairRoundScreen() {
       const partner = s.players.find((p) => p.device_id !== deviceId);
       const me = s.players.find((p) => p.device_id === deviceId);
       if (!partner || !me) return;
+      // Wait until the partner's real name has loaded from the members feed.
+      // Otherwise the leaderboard would show their Member ID number instead
+      // of their name (a bug seen on early pair rounds).
+      if (!partnerMember || partnerMember.member_id !== partner.member_id) return;
       const url = await getWebhookUrl();
       if (!url) return;
       const verifiedHoles = new Set<number>(
@@ -250,6 +254,19 @@ export default function PairRoundScreen() {
       }
     })();
   }, [partner?.member_id, partnerMember?.member_id]);
+
+  // If partnerMember loads *after* holes were already verified (race between
+  // the members fetch and the first-hole verify), any earlier publish attempts
+  // were skipped so the name in the sheet is currently the Member ID number.
+  // Reset the synced-hole set and re-publish once so the row gets the proper
+  // Player Name. Runs only once per (session × partner).
+  useEffect(() => {
+    if (!session || !partner?.member_id || !partnerMember) return;
+    if (partnerMember.member_id !== partner.member_id) return;
+    liveSyncedHolesRef.current.clear();
+    publishPartnerCard(session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerMember?.member_id, session?.id]);
 
   // Pre-allocate a unique 2BBB Scorecard ID for the partner's card once per
   // pair session, so both `publishPartnerCard` (live) and pair-summary export

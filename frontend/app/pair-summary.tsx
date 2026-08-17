@@ -206,6 +206,17 @@ export default function PairSummary() {
 
   const onSubmitCard = async () => {
     if (!partner) return;
+    // Guard: don't export until the partner's real name has loaded from the
+    // members feed — otherwise the Player Name column would be their Member ID
+    // number instead of "First Last".
+    if (!partnerMember || partnerMember.member_id !== partner.member_id) {
+      setExportState({
+        kind: "error",
+        message: "Partner details still loading. Try again in a second.",
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      return;
+    }
     const stored = await getWebhookUrl();
     if (!stored) {
       setExportState({ kind: "no_webhook" });
