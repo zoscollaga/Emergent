@@ -26,6 +26,7 @@ import {
   markRoundExported,
 } from "@/src/lib/storage";
 import { exportSoloRoundToSheet } from "@/src/lib/sheets";
+import { getCachedCloudRounds, PlayerRound } from "@/src/lib/history";
 
 type ExportState =
   | { kind: "idle" }
@@ -47,7 +48,14 @@ export default function SummaryScreen() {
   useEffect(() => {
     (async () => {
       const list = await getRoundHistory();
-      const target = id ? list.find((r) => r.id === id) : list[0];
+      let target: FinishedRound | null = (id ? list.find((r) => r.id === id) : list[0]) || null;
+      // Fallback: look up in the cloud-round cache so tap-through from
+      // Profile → historical cloud rounds also renders.
+      if (!target && id) {
+        const cloud = await getCachedCloudRounds();
+        const found = cloud.find((c) => c.id === id || c.scorecard_id === id);
+        if (found) target = playerRoundToFinished(found);
+      }
       setRound(target || null);
       const c = await getSelectedCourse();
       setCourse(c);
@@ -58,6 +66,19 @@ export default function SummaryScreen() {
       setLoading(false);
     })();
   }, [id]);
+
+  // Convert a cloud PlayerRound into the shape summary.tsx already renders.
+  function playerRoundToFinished(p: PlayerRound): FinishedRound {
+    return {
+      id: p.id,
+      date: p.date,
+      course_id: p.course_id,
+      course_name: p.course_name,
+      holes: p.holes,
+      total_score: p.gross_score,
+      total_putts: p.total_putts,
+    };
+  }
 
   const performExport = async (webhookUrl: string) => {
     if (!round) return;
