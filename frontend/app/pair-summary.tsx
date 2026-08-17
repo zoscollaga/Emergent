@@ -179,7 +179,10 @@ export default function PairSummary() {
       scorecard_id: priorId || "",
     });
     if (result.ok) {
-      if (result.scorecard_id) {
+      // Only persist the server-issued id if we didn't already have a
+      // pre-allocated one — otherwise we'd stomp our "-2B" pair id and lose
+      // the suffix that flags the row as a 2BBB scorecard.
+      if (!priorId && result.scorecard_id) {
         const AS = (await import("@react-native-async-storage/async-storage")).default;
         await AS.setItem(key, result.scorecard_id);
       }

@@ -613,30 +613,41 @@ function TeamRowView({
 /* -------------------- Data transforms -------------------- */
 
 /** Build 2BBB team rows from a flat list of scorecards.
- *  A team is admitted ONLY when we have exactly TWO distinct rows that:
+ *  A team is admitted when we have exactly TWO distinct rows that:
  *    - both have a member_id AND a marker_id set
  *    - reference each other (A.marker_id == B.member_id AND vice-versa)
  *    - are on the same course
  *  Solo rows (no marker_id) and one-sided pairings are excluded, so the 2BBB
  *  leaderboard never shows a "team of one".
+ *
+ *  IDs are normalised (trim + toString) before comparison so that trailing
+ *  whitespace or numeric-vs-string mismatches (which happen when the Google
+ *  Sheet returns some columns as numbers) never break the pairing on iOS.
  */
 function buildTeams(rows: LeaderboardRow[]): TeamRow[] {
+  // Normalise IDs once and index by trimmed string member_id
+  const norm = (v: any) => String(v ?? "").trim();
   const byMember = new Map<string, LeaderboardRow>();
   rows.forEach((r) => {
-    if (r.member_id) byMember.set(r.member_id, r);
+    const mid = norm(r.member_id);
+    if (mid) byMember.set(mid, r);
   });
   const seen = new Set<string>();
   const teams: TeamRow[] = [];
   for (const r of rows) {
-    if (!r.member_id || !r.marker_id) continue;             // must have both ids
-    if (r.member_id === r.marker_id) continue;              // can't mark yourself
-    const partner = byMember.get(r.marker_id);
-    if (!partner) continue;                                  // partner must exist
-    if (!partner.member_id || !partner.marker_id) continue;  // partner must also have both ids
-    if (partner.marker_id !== r.member_id) continue;         // must be mutual
-    if (partner.member_id === r.member_id) continue;         // truly distinct
-    if (r.course !== partner.course) continue;               // same course only
-    const key = [r.member_id, r.marker_id].sort().join("::");
+    const rMid = norm(r.member_id);
+    const rMkr = norm(r.marker_id);
+    if (!rMid || !rMkr) continue;               // must have both ids
+    if (rMid === rMkr) continue;                // can't mark yourself
+    const partner = byMember.get(rMkr);
+    if (!partner) continue;                      // partner must exist
+    const pMid = norm(partner.member_id);
+    const pMkr = norm(partner.marker_id);
+    if (!pMid || !pMkr) continue;                // partner must also have both ids
+    if (pMkr !== rMid) continue;                 // must be mutual
+    if (pMid === rMid) continue;                 // truly distinct
+    if (norm(r.course) !== norm(partner.course)) continue; // same course only
+    const key = [rMid, rMkr].sort().join("::");
     if (seen.has(key)) continue;
     seen.add(key);
     const playerA = r;

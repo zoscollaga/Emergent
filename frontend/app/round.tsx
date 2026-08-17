@@ -125,7 +125,8 @@ export default function RoundScreen() {
       const priorId = (await AsyncStorage.getItem(key)) || undefined;
       try {
         const res = await exportSoloRoundToSheet(url, round, course, identified, priorId);
-        if (res.ok && res.scorecard_id) {
+        // Only persist server-issued id when we didn't already pre-allocate one.
+        if (res.ok && !priorId && res.scorecard_id) {
           await AsyncStorage.setItem(key, res.scorecard_id);
         }
       } catch {

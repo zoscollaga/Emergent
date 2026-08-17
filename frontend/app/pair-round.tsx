@@ -18,7 +18,7 @@ import {
   getSession,
   submitHole,
 } from "@/src/lib/api";
-import { getDeviceId, getIdentifiedMember, getWebhookUrl, IdentifiedMember } from "@/src/lib/storage";
+import { getDeviceId, getIdentifiedMember, getWebhookUrl, allocateScorecardId, IdentifiedMember } from "@/src/lib/storage";
 import { fetchMembers, Member } from "@/src/lib/members";
 import {
   buildPlayerCsv,
@@ -112,7 +112,9 @@ export default function PairRoundScreen() {
           scorecard_id: priorId || "",
           live: "1",
         });
-        if (res.ok && res.scorecard_id) {
+        // Only persist a server-issued id when we didn't already have one —
+        // preserves the "-2B" suffix pre-allocated at session start.
+        if (res.ok && !priorId && res.scorecard_id) {
           await AsyncStorage.setItem(key, res.scorecard_id);
         }
       } catch {
@@ -247,6 +249,25 @@ export default function PairRoundScreen() {
       }
     })();
   }, [partner?.member_id, partnerMember?.member_id]);
+
+  // Pre-allocate a unique 2BBB Scorecard ID for the partner's card once per
+  // pair session, so both `publishPartnerCard` (live) and pair-summary export
+  // reuse the same id and the sheet never overwrites a previous scorecard.
+  // Suffix "-2B" flags the row as a 2BBB pair scorecard in Google Sheets.
+  useEffect(() => {
+    if (!session || !partner?.member_id) return;
+    const key = `scId::${session.id}::${partner.member_id}`;
+    (async () => {
+      const existing = await AsyncStorage.getItem(key);
+      if (existing) return;
+      const scId = await allocateScorecardId(session.started_at, "-2B");
+      // Only set if still unassigned to avoid stomping a concurrent set.
+      const check = await AsyncStorage.getItem(key);
+      if (!check) await AsyncStorage.setItem(key, scId);
+    })();
+    // Intentional: only re-run when identity of the session or partner changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.started_at, partner?.member_id]);
 
   const [playerLabel, markerLabel] = disambiguateNames(
     meMember ? { first_name: meMember.first_name, last_name: meMember.last_name, member_id: (meMember as any).member_id || me?.member_id || "" } : null,

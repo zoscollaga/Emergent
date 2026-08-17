@@ -200,8 +200,11 @@ export function getDefaultWebhookUrl(): string {
  * Allocate a new, unique Scorecard ID in the format `SCYYYYMMDDNNN` (no hyphens).
  * NNN is a per-date counter kept in AsyncStorage so multiple rounds on the same
  * day by the same player never collide. Idempotent per counter increment.
+ *
+ * Optional `suffix` is appended verbatim (e.g. "-2B" for a 2BBB pair round) so
+ * the sheet clearly distinguishes pair scorecards from solo scorecards.
  */
-export async function allocateScorecardId(iso: string): Promise<string> {
+export async function allocateScorecardId(iso: string, suffix: string = ""): Promise<string> {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   const datePart = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
@@ -210,7 +213,12 @@ export async function allocateScorecardId(iso: string): Promise<string> {
   const prev = raw ? parseInt(raw, 10) || 0 : 0;
   const next = prev + 1;
   await AsyncStorage.setItem(key, String(next));
-  return `SC${datePart}${String(next).padStart(3, "0")}`;
+  return `SC${datePart}${String(next).padStart(3, "0")}${suffix}`;
+}
+
+/** True when a scorecard id looks like a 2BBB pair scorecard (suffix "-2B"). */
+export function isPairScorecardId(id: string | null | undefined): boolean {
+  return !!id && /-2B$/.test(String(id).trim());
 }
 /** Returns just the device override (nothing when only the shipped default is used). */
 export async function getWebhookOverride(): Promise<string | null> {
