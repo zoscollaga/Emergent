@@ -80,9 +80,10 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
-.env
-.env.*
-*.env
+# NOTE: .env files intentionally NOT ignored — the Emergent deployment pipeline
+# needs frontend/.env (EXPO_PUBLIC_*) and backend/.env (MONGO_URL) at build time.
+# Store any secrets outside these files or add them via the deploy platform's
+# secret manager.
 credentials.json
 *.key
 .credentials
