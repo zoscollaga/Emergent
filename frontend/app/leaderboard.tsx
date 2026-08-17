@@ -227,6 +227,7 @@ export default function LeaderboardScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
           contentContainerStyle={styles.filterRow}
         >
           <FilterChip
@@ -832,6 +833,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   segmentBtnTextActive: { color: colors.onBrandPrimary },
+  // Pin the horizontal filter to its content height. Without flexGrow:0 iOS
+  // stretches the ScrollView vertically to fill the parent and pushes every
+  // sibling below it off-screen (Chrome hugs content by default).
+  filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterRow: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
