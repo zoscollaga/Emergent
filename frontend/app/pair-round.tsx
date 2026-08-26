@@ -18,8 +18,8 @@ import {
   getSession,
   submitHole,
 } from "@/src/lib/api";
-import { getDeviceId, getIdentifiedMember, getWebhookUrl, allocateScorecardId, IdentifiedMember } from "@/src/lib/storage";
-import { pairSessionShort } from "@/src/lib/pair-id";
+import { getDeviceId, getIdentifiedMember, getWebhookUrl, IdentifiedMember } from "@/src/lib/storage";
+import { buildPairScorecardId } from "@/src/lib/pair-id";
 import { fetchMembers, Member } from "@/src/lib/members";
 import {
   buildPlayerCsv,
@@ -269,25 +269,22 @@ export default function PairRoundScreen() {
   }, [partnerMember?.member_id, session?.id]);
 
   // Pre-allocate a unique 2BBB Scorecard ID for the partner's card once per
-  // pair session, so both `publishPartnerCard` (live) and pair-summary export
-  // reuse the same id and the sheet never overwrites a previous scorecard.
+  // pair session. The ID is DETERMINISTIC per (session × partner), so both
+  // devices publishing the same target player's card use the same id (idempotent
+  // upsert) and different targets naturally get different ids. This closes the
+  // earlier bug where two devices with fresh AsyncStorage counters both
+  // allocated the same NNN and overwrote each other's rows.
   //
-  // Format: `SCyyyyMMDDNNN-2B-<sessionShort>` — the trailing session hash lets
-  // the leaderboard group the two partner rows into a team even when the
-  // Apps Script `leaderboard` endpoint doesn't project the Marker ID column.
+  // Format: `SC<yyyyMMdd>-2B-<sessionShort>-<partnerMemberId>`
   useEffect(() => {
     if (!session || !partner?.member_id) return;
     const key = `scId::${session.id}::${partner.member_id}`;
     (async () => {
-      const existing = await AsyncStorage.getItem(key);
-      if (existing) return;
-      const sessionShort = pairSessionShort(session.id);
-      const scId = await allocateScorecardId(session.started_at, `-2B-${sessionShort}`);
-      // Only set if still unassigned to avoid stomping a concurrent set.
-      const check = await AsyncStorage.getItem(key);
-      if (!check) await AsyncStorage.setItem(key, scId);
+      const scId = buildPairScorecardId(session.started_at, session.id, partner.member_id);
+      // Always set — deterministic, safe to overwrite. This also self-heals
+      // any legacy counter-based id cached on this device from before the fix.
+      await AsyncStorage.setItem(key, scId);
     })();
-    // Intentional: only re-run when identity of the session or partner changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.started_at, partner?.member_id]);
 

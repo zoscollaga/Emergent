@@ -21,14 +21,38 @@ export function pairSessionShort(sessionId: string | null | undefined): string {
 }
 
 /** Extract the session-short hash from a scorecard id (returns null when the
- *  id isn't a pair-2B id). */
+ *  id isn't a pair-2B id). Accepts both the current
+ *  `SCyyyyMMdd-2B-<hash>-<memberId>` format and legacy `-2B-<hash>` (no member
+ *  id suffix). */
 export function extractPairSessionShort(scorecardId: string | null | undefined): string | null {
   const s = String(scorecardId ?? "").trim();
-  const m = /-2B-([a-f0-9]{4,})$/i.exec(s);
+  const m = /-2B-([a-f0-9]{4,})(?:-\w+)?$/i.exec(s);
   return m ? m[1].toLowerCase() : null;
 }
 
 /** True when a scorecard id looks like a 2BBB pair scorecard. */
 export function isPairScorecardId(scorecardId: string | null | undefined): boolean {
-  return /-2B(-[a-f0-9]+)?$/i.test(String(scorecardId ?? "").trim());
+  return /-2B(-[a-f0-9]+(?:-\w+)?)?$/i.test(String(scorecardId ?? "").trim());
+}
+
+/** Deterministic Scorecard ID for a 2BBB pair round: same across both devices
+ *  publishing the same target player's card, unique across different targets
+ *  in the same session. Format:
+ *
+ *      SC<yyyyMMdd>-2B-<sessionShort>-<targetMemberId>
+ *
+ *  No per-device counter → no collision when both devices happen to start
+ *  their counters at the same value on the same day.
+ */
+export function buildPairScorecardId(
+  startedAtIso: string,
+  sessionId: string,
+  targetMemberId: string,
+): string {
+  const d = new Date(startedAtIso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePart = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const sess = pairSessionShort(sessionId);
+  const mid = String(targetMemberId || "").trim() || "unknown";
+  return `SC${datePart}-2B-${sess}-${mid}`;
 }
