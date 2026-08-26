@@ -16,6 +16,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import {
   clearActiveRound,
   getActiveRound,
+  getActiveSessionId,
   getSelectedCourse,
   getWebhookUrl,
   setSelectedCourse,
@@ -36,11 +37,13 @@ export default function CoursesScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // Block picking only if a round is actually in progress (i.e. at least one
-    // hole scored). Just having navigated to /round without scoring is fine.
+    // Block picking if a solo round is in progress (any hole scored) OR a
+    // pair session is active — starting mid-round on the wrong course is a
+    // no-go; the user must cancel/finish the round first.
     const active = await getActiveRound();
     const hasScoredHole = active?.entries.some((e) => e.score != null || e.putts != null) ?? false;
-    if (hasScoredHole) {
+    const activePair = await getActiveSessionId();
+    if (hasScoredHole || activePair) {
       setLocked(true);
       setLoading(false);
       return;

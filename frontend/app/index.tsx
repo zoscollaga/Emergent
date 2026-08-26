@@ -11,11 +11,14 @@ import {
   IdentifiedMember,
   StoredCourse,
   clearActiveRound,
+  clearActiveSessionId,
   getActiveRound,
+  getActiveSessionId,
   getIdentifiedMember,
   getSelectedCourse,
   setSelectedCourse,
 } from "@/src/lib/storage";
+import { getSession as apiGetSession } from "@/src/lib/api";
 
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1742498626081-a64f9677f468?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHwlMjJnb2xmJTIwY291cnNlJTIwbGFuZHNjYXBlJTIyfGVufDB8fHx8MTc4NTgxMzk5MXww&ixlib=rb-4.1.0&q=85";
@@ -52,6 +55,11 @@ export default function HomeScreen() {
   const [identity, setIdentity] = useState<IdentifiedMember | null>(null);
   const [course, setCourse] = useState<StoredCourse>(KEILOR);
   const [roundActive, setRoundActive] = useState(false);
+  const [pairSession, setPairSession] = useState<{
+    id: string;
+    join_code: string;
+    course_name: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     const cached = await getSelectedCourse();
@@ -63,12 +71,27 @@ export default function HomeScreen() {
       setCourse(cached);
     }
     setIdentity(await getIdentifiedMember());
-    // Only treat a round as "in progress" once the player has actually scored a
-    // hole. Merely opening the round screen (which auto-creates an ActiveRound
-    // shell) shouldn't lock the course picker.
+    // Solo round in progress?
     const active = await getActiveRound();
     const hasScoredHole = active?.entries.some((e) => e.score != null || e.putts != null) ?? false;
-    setRoundActive(hasScoredHole);
+    // Pair round in progress? (idempotent — checks backend for live session)
+    const activeSid = await getActiveSessionId();
+    let pair: typeof pairSession = null;
+    if (activeSid) {
+      try {
+        const s = await apiGetSession(activeSid);
+        if (!s.finished_at && s.players.length >= 1) {
+          pair = { id: s.id, join_code: s.join_code, course_name: s.course_name };
+        } else {
+          // Stale — clear
+          await clearActiveSessionId();
+        }
+      } catch {
+        // Backend unreachable — keep pair banner off but don't lose the cached id
+      }
+    }
+    setPairSession(pair);
+    setRoundActive(hasScoredHole || !!pair);
   }, []);
 
   useEffect(() => {
@@ -149,7 +172,7 @@ export default function HomeScreen() {
               <Ionicons name="lock-closed" size={16} color="rgba(255,255,255,0.7)" />
             )}
           </Pressable>
-          {roundActive && (
+          {roundActive && !pairSession && (
             <Pressable
               onPress={async () => {
                 await clearActiveRound();
@@ -160,6 +183,21 @@ export default function HomeScreen() {
             >
               <Ionicons name="trash-outline" size={12} color="#FCA5A5" />
               <Text style={styles.cancelChipText}>Cancel round</Text>
+            </Pressable>
+          )}
+          {pairSession && (
+            <Pressable
+              onPress={() =>
+                router.push({ pathname: "/pair-round", params: { sid: pairSession.id } })
+              }
+              testID="resume-pair-session-button"
+              style={({ pressed }) => [styles.resumeChip, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="return-up-forward" size={14} color={colors.brand} />
+              <Text style={styles.resumeChipText}>
+                Resume 2BBB round · Code <Text style={styles.resumeChipCode}>{pairSession.join_code}</Text>
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.brand} />
             </Pressable>
           )}
         </SafeAreaView>
@@ -274,6 +312,28 @@ const styles = StyleSheet.create({
     fontFamily: typography.textBold,
     fontSize: 11,
     letterSpacing: 0.5,
+  },
+  resumeChip: {
+    marginTop: 8,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(255,255,255,0.92)",
+  },
+  resumeChipText: {
+    flex: 1,
+    color: colors.brand,
+    fontFamily: typography.textBold,
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  resumeChipCode: {
+    color: colors.onSurface,
+    letterSpacing: 2,
   },
   courseName: {
     color: colors.onBrandSecondary,

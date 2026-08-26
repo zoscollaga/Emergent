@@ -404,6 +404,12 @@ export default function PairRoundScreen() {
           <Text style={styles.pairLabel}>
             {me?.member_id || "----"} · Marker: {partner?.member_id || "waiting…"}
           </Text>
+          <View style={styles.joinCodeRow} testID="pair-round-join-code">
+            <Ionicons name="key-outline" size={10} color={colors.muted} />
+            <Text style={styles.joinCodeLabel}>
+              Rejoin code: <Text style={styles.joinCodeValue}>{session.join_code}</Text>
+            </Text>
+          </View>
         </View>
         <View style={styles.iconBtn} />
       </View>
@@ -755,6 +761,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.text,
     fontSize: 11,
     marginTop: 2,
+  },
+  joinCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  joinCodeLabel: {
+    color: colors.muted,
+    fontFamily: typography.text,
+    fontSize: 10,
+    letterSpacing: 0.3,
+  },
+  joinCodeValue: {
+    fontFamily: typography.textBold,
+    color: colors.brand,
+    letterSpacing: 1.5,
   },
   holeCard: {
     marginHorizontal: spacing.xl,
