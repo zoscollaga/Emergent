@@ -334,9 +334,9 @@ function TotalCell({
 }) {
   return (
     <View style={styles.totalCell} testID={testID}>
-      <Text style={styles.totalLabel}>{label}</Text>
-      <Text style={styles.totalValue}>{value}</Text>
-      {sub && <Text style={styles.totalSub}>{sub}</Text>}
+      <Text style={styles.totalLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.totalValue} numberOfLines={1}>{value}</Text>
+      {sub && <Text style={styles.totalSub} numberOfLines={1}>{sub}</Text>}
     </View>
   );
 }
@@ -369,48 +369,63 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     borderRadius: radius.lg,
     flexDirection: "row",
-    padding: spacing.xl,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
     alignItems: "center",
   },
-  totalCell: { flex: 1, alignItems: "center" },
-  totalLabel: { color: "#A7F3D0", fontFamily: typography.text, fontSize: 12, letterSpacing: 1 },
+  totalCell: { flex: 1, alignItems: "center", paddingHorizontal: 4 },
+  totalLabel: {
+    color: "#A7F3D0",
+    fontFamily: typography.text,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
   totalValue: {
     color: colors.onBrandSecondary,
     fontFamily: typography.display,
-    fontSize: 44,
+    fontSize: 40,
+    lineHeight: 44,
     marginTop: 6,
   },
-  totalSub: { color: "#D1FAE5", fontFamily: typography.text, fontSize: 12, marginTop: 4 },
+  totalSub: { color: "#D1FAE5", fontFamily: typography.text, fontSize: 11, marginTop: 4, textAlign: "center" },
   totalDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.15)" },
   tableHeader: {
     flexDirection: "row",
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     marginTop: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
+    backgroundColor: colors.surfaceSecondary,
   },
-  tCol: { width: 56, textAlign: "center" },
+  tCol: { width: 52, textAlign: "center" },
   stablefordCell: {
     fontFamily: typography.textBold,
     fontSize: 15,
   },
   thText: {
     fontFamily: typography.textBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.muted,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
+    textAlign: "center",
   },
   tr: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md + 2,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  tdText: { fontFamily: typography.text, fontSize: 16, color: colors.onSurface, textAlign: "center" },
+  tdText: {
+    fontFamily: typography.text,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.onSurface,
+    textAlign: "center",
+  },
   scoreChip: {
     minWidth: 44,
     paddingHorizontal: spacing.md,
