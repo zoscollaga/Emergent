@@ -27,6 +27,7 @@ import {
 } from "@/src/lib/storage";
 import { exportSoloRoundToSheet } from "@/src/lib/sheets";
 import { getCachedCloudRounds, PlayerRound } from "@/src/lib/history";
+import { stablefordForRound } from "@/src/lib/stableford";
 
 type ExportState =
   | { kind: "idle" }
@@ -150,6 +151,26 @@ export default function SummaryScreen() {
   const diff = round.total_score - totalPar;
   const diffLabel = totalPar === 0 ? "" : diff === 0 ? "E" : diff > 0 ? `+${diff}` : `${diff}`;
 
+  // Stableford points — computed per hole and totalled. Requires the course to
+  // match the round (for par + stroke index) AND a numeric handicap.
+  const courseMatchesRound = !!course && course.id === round.course_id;
+  const hasHandicap = identified?.handicap != null && Number.isFinite(identified.handicap);
+  const canScoreStableford = courseMatchesRound && hasHandicap;
+  const stableford = canScoreStableford
+    ? stablefordForRound(
+        round.holes.map((h) => {
+          const info = holePars.find((x) => x.number === h.number);
+          return {
+            number: h.number,
+            gross: h.score,
+            par: info?.par ?? 0,
+            stroke_index: info?.index ?? 0,
+          };
+        }),
+        identified!.handicap,
+      )
+    : null;
+
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="summary-screen">
       <View style={styles.header}>
@@ -172,6 +193,19 @@ export default function SummaryScreen() {
           value={String(round.total_putts)}
           testID="total-putts"
         />
+        <View style={styles.totalDivider} />
+        <TotalCell
+          label="Stableford"
+          value={stableford ? String(stableford.total) : "\u2014"}
+          sub={
+            stableford
+              ? `${stableford.holes_scored} of 18`
+              : !hasHandicap
+              ? "set handicap"
+              : "different course"
+          }
+          testID="total-stableford"
+        />
       </View>
 
       <View style={styles.tableHeader}>
@@ -179,6 +213,7 @@ export default function SummaryScreen() {
         <Text style={[styles.thText, styles.tCol]}>Par</Text>
         <Text style={[styles.thText, styles.tCol]}>Score</Text>
         <Text style={[styles.thText, styles.tCol]}>Putts</Text>
+        <Text style={[styles.thText, styles.tCol]}>Pts</Text>
       </View>
 
       <ScrollView
@@ -190,6 +225,8 @@ export default function SummaryScreen() {
           const scoreDiff =
             h.score != null && par != null ? h.score - par : null;
           const chipColor = getScoreColor(scoreDiff);
+          const holePts =
+            stableford?.per_hole.find((p) => p.hole_number === h.number)?.points ?? null;
           return (
             <View key={h.number} style={styles.tr} testID={`summary-row-${h.number}`}>
               <Text style={[styles.tdText, { flex: 1 }]}>{h.number}</Text>
@@ -202,6 +239,17 @@ export default function SummaryScreen() {
                 </View>
               </View>
               <Text style={[styles.tdText, styles.tCol]}>{h.putts ?? "-"}</Text>
+              <Text
+                style={[
+                  styles.tdText,
+                  styles.tCol,
+                  styles.stablefordCell,
+                  holePts != null && holePts >= 3 && { color: colors.success },
+                  holePts === 0 && { color: colors.muted },
+                ]}
+              >
+                {stableford ? String(holePts ?? 0) : "\u2014"}
+              </Text>
             </View>
           );
         })}
@@ -342,7 +390,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  tCol: { width: 68, textAlign: "center" },
+  tCol: { width: 56, textAlign: "center" },
+  stablefordCell: {
+    fontFamily: typography.textBold,
+    fontSize: 15,
+  },
   thText: {
     fontFamily: typography.textBold,
     fontSize: 12,
