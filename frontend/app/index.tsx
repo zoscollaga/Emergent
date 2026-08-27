@@ -55,6 +55,7 @@ export default function HomeScreen() {
   const [identity, setIdentity] = useState<IdentifiedMember | null>(null);
   const [course, setCourse] = useState<StoredCourse>(KEILOR);
   const [roundActive, setRoundActive] = useState(false);
+  const [activeHole, setActiveHole] = useState<number>(1);
   const [pairSession, setPairSession] = useState<{
     id: string;
     join_code: string;
@@ -74,6 +75,7 @@ export default function HomeScreen() {
     // Solo round in progress?
     const active = await getActiveRound();
     const hasScoredHole = active?.entries.some((e) => e.score != null || e.putts != null) ?? false;
+    if (active?.currentHole) setActiveHole(active.currentHole);
     // Pair round in progress? (idempotent — checks backend for live session)
     const activeSid = await getActiveSessionId();
     let pair: typeof pairSession = null;
@@ -209,8 +211,16 @@ export default function HomeScreen() {
           onPress={() => router.push("/round")}
           style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
         >
-          <Ionicons name="golf" size={22} color={colors.onBrandPrimary} />
-          <Text style={styles.primaryBtnText}>START ROUND · SOLO</Text>
+          <Ionicons
+            name={roundActive && !pairSession ? "play" : "golf"}
+            size={22}
+            color={colors.onBrandPrimary}
+          />
+          <Text style={styles.primaryBtnText}>
+            {roundActive && !pairSession
+              ? `CONTINUE ROUND · HOLE ${activeHole}`
+              : "START ROUND · SOLO"}
+          </Text>
         </Pressable>
         <Pressable
           testID="start-round-pair-button"
