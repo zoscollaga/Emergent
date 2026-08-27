@@ -124,20 +124,6 @@ export default function HomeScreen() {
             <View style={{ flex: 1 }} />
             <View style={styles.brandActions}>
               <Pressable
-                onPress={() => router.push("/identify")}
-                hitSlop={12}
-                testID="identity-chip"
-                style={({ pressed }) => [styles.memberChip, pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name="person-circle" size={14} color="#D1FAE5" />
-                <Text style={styles.memberChipText} numberOfLines={1}>
-                  {identity
-                    ? `${identity.first_name} ${identity.last_name}${identity.member_id ? " · #" + identity.member_id : ""}`
-                    : "Choose your name"}
-                </Text>
-                <Ionicons name="chevron-forward" size={12} color="#D1FAE5" />
-              </Pressable>
-              <Pressable
                 onPress={() => router.push("/settings")}
                 hitSlop={12}
                 testID="settings-button"

@@ -268,25 +268,20 @@ export default function PairRoundScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerMember?.member_id, session?.id]);
 
-  // Pre-allocate a unique 2BBB Scorecard ID for the partner's card once per
-  // pair session. The ID is DETERMINISTIC per (session × partner), so both
-  // devices publishing the same target player's card use the same id (idempotent
-  // upsert) and different targets naturally get different ids. This closes the
-  // earlier bug where two devices with fresh AsyncStorage counters both
-  // allocated the same NNN and overwrote each other's rows.
-  //
-  // Format: `SC<yyyyMMdd>-2B-<sessionShort>-<partnerMemberId>`
+  // Pre-allocate a deterministic 2BBB Scorecard ID for the partner's card.
+  // Format: `SC<yyyyMMdd>-2B-<joinCode>-<partnerMemberId>` — both devices see
+  // the same join code and the same partner member id, so both agree on the
+  // id (idempotent upsert), and different partners naturally get different
+  // ids within the same session.
   useEffect(() => {
     if (!session || !partner?.member_id) return;
     const key = `scId::${session.id}::${partner.member_id}`;
     (async () => {
-      const scId = buildPairScorecardId(session.started_at, session.id, partner.member_id);
-      // Always set — deterministic, safe to overwrite. This also self-heals
-      // any legacy counter-based id cached on this device from before the fix.
+      const scId = buildPairScorecardId(session.started_at, session.join_code, partner.member_id);
       await AsyncStorage.setItem(key, scId);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.id, session?.started_at, partner?.member_id]);
+  }, [session?.id, session?.join_code, session?.started_at, partner?.member_id]);
 
   const [playerLabel, markerLabel] = disambiguateNames(
     meMember ? { first_name: meMember.first_name, last_name: meMember.last_name, member_id: (meMember as any).member_id || me?.member_id || "" } : null,
